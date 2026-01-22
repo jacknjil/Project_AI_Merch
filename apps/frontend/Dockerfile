@@ -27,7 +27,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy package files and install *runtime* deps
+# Copy package files and install *runtime* depss
 COPY package*.json ./
 RUN npm install --omit=dev
 
@@ -36,7 +36,7 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 
 # If you have any config files needed at runtime (next.config, etc.), copy them too
-COPY --from=builder /app/next.config.* ./ || true
+COPY --from=builder /app/next.config.* ./
 
 # Next.js will listen on port 3000 by default
 EXPOSE 3000
