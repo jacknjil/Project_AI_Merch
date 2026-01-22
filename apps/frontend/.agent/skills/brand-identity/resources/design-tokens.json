@@ -1,0 +1,12 @@
+{
+  "colors": {
+    "primary": "#000000",
+    "secondary": "#FFFFFF",
+    "accent": "#00FF41",
+    "background": "#F8F9FA"
+  },
+  "fonts": {
+    "heading": "Inter, sans-serif",
+    "body": "Roboto, sans-serif"
+  }
+}

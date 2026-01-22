@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "brand_name": "Antigravity Shop",
+    "description": "Tokens for high-conversion e-commerce interfaces."
+  },
+  "colors": {
+    "primary": {
+      "DEFAULT": "#1A1A1A",
+      "foreground": "#FFFFFF"
+    },
+    "success": {
+      "DEFAULT": "#16A34A",
+      "hover": "#15803D",
+      "foreground": "#FFFFFF"
+    },
+    "price": "#B91C1C",
+    "background": "#FDFDFD"
+  },
+  "typography": {
+    "font_family_headings": ["Geist", "sans-serif"],
+    "font_family_body": ["Inter", "sans-serif"]
+  },
+  "ui": {
+    "border_radius_interactive": "0.75rem",
+    "spacing_container": "2rem"
+  }
+}
