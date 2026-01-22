@@ -179,7 +179,8 @@ export default function ShopPage() {
                     }}
                   >
                     {p.mockupImageUrl ? (
-                      <image
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
                         src={p.mockupImageUrl}
                         alt={p.name}
                         style={{
