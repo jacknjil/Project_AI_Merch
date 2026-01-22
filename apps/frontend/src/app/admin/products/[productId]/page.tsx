@@ -1,17 +1,11 @@
-"use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
 
-import React, { useEffect, useState, FormEvent } from "react";
-import { useParams, useRouter } from "next/navigation";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import AssetPicker, {
-  AssetDoc,
-} from "@/components/admin/AssetPicker";
+import React, { useEffect, useState, FormEvent } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import AssetPicker, { AssetDoc } from '@/components/admin/AssetPicker';
 
 type ProductState = {
   name: string;
@@ -36,9 +30,7 @@ export default function EditProductPage() {
 
   // Asset picker state
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<AssetDoc | null>(
-    null
-  );
+  const [selectedAsset, setSelectedAsset] = useState<AssetDoc | null>(null);
 
   // Load product once
   useEffect(() => {
@@ -48,11 +40,11 @@ export default function EditProductPage() {
         setError(null);
         setLoading(true);
 
-        const ref = doc(db, "products", productId);
+        const ref = doc(db, 'products', productId);
         const snap = await getDoc(ref);
 
         if (!snap.exists()) {
-          setError("Product not found.");
+          setError('Product not found.');
           setProduct(null);
           return;
         }
@@ -60,16 +52,12 @@ export default function EditProductPage() {
         const data = snap.data() as any;
 
         const state: ProductState = {
-          name: data.name ?? "",
-          description: data.description ?? "",
-          priceInput:
-            typeof data.price === "number"
-              ? String(data.price)
-              : "",
-          mockupImageUrl: data.mockupImageUrl ?? "",
-          defaultAssetId: data.defaultAssetId ?? "",
-          active:
-            typeof data.active === "boolean" ? data.active : true,
+          name: data.name ?? '',
+          description: data.description ?? '',
+          priceInput: typeof data.price === 'number' ? String(data.price) : '',
+          mockupImageUrl: data.mockupImageUrl ?? '',
+          defaultAssetId: data.defaultAssetId ?? '',
+          active: typeof data.active === 'boolean' ? data.active : true,
         };
 
         setProduct(state);
@@ -80,8 +68,8 @@ export default function EditProductPage() {
 
         setLoaded(true);
       } catch (err: any) {
-        console.error("[ADMIN] Error loading product:", err);
-        setError(err?.message ?? "Failed to load product.");
+        console.error('[ADMIN] Error loading product:', err);
+        setError(err?.message ?? 'Failed to load product.');
       } finally {
         setLoading(false);
       }
@@ -98,18 +86,18 @@ export default function EditProductPage() {
 
     const priceNumber = parseFloat(product.priceInput);
     if (!product.name.trim()) {
-      setError("Name is required.");
+      setError('Name is required.');
       return;
     }
     if (Number.isNaN(priceNumber) || priceNumber < 0) {
-      setError("Price must be a non-negative number.");
+      setError('Price must be a non-negative number.');
       return;
     }
 
     try {
       setSaving(true);
 
-      const ref = doc(db, "products", productId);
+      const ref = doc(db, 'products', productId);
       await updateDoc(ref, {
         name: product.name.trim(),
         description: product.description.trim(),
@@ -120,12 +108,12 @@ export default function EditProductPage() {
         updatedAt: serverTimestamp(),
       });
 
-      console.log("[ADMIN] Updated product:", productId);
+      console.log('[ADMIN] Updated product:', productId);
       // optional: small toast / navigate
       // router.push("/admin/products");
     } catch (err: any) {
-      console.error("[ADMIN] Error updating product:", err);
-      setError(err?.message ?? "Failed to update product.");
+      console.error('[ADMIN] Error updating product:', err);
+      setError(err?.message ?? 'Failed to update product.');
     } finally {
       setSaving(false);
     }
@@ -133,7 +121,7 @@ export default function EditProductPage() {
 
   const handleFieldChange = (
     field: keyof ProductState,
-    value: string | boolean
+    value: string | boolean,
   ) => {
     setProduct((prev) =>
       prev
@@ -141,7 +129,7 @@ export default function EditProductPage() {
             ...prev,
             [field]: value,
           }
-        : prev
+        : prev,
     );
   };
 
@@ -153,10 +141,9 @@ export default function EditProductPage() {
             ...prev,
             defaultAssetId: asset.id,
             // If no mockup yet, use asset image as a sensible default
-            mockupImageUrl:
-              prev.mockupImageUrl || asset.imageUrl || "",
+            mockupImageUrl: prev.mockupImageUrl || asset.imageUrl || '',
           }
-        : prev
+        : prev,
     );
     setAssetPickerOpen(false);
   };
@@ -165,9 +152,9 @@ export default function EditProductPage() {
     return (
       <main
         style={{
-          minHeight: "100vh",
-          background: "#020617",
-          color: "#e5e7eb",
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
           padding: 24,
         }}
       >
@@ -180,9 +167,9 @@ export default function EditProductPage() {
     return (
       <main
         style={{
-          minHeight: "100vh",
-          background: "#020617",
-          color: "#e5e7eb",
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
           padding: 24,
         }}
       >
@@ -190,8 +177,8 @@ export default function EditProductPage() {
         {error && (
           <p
             style={{
-              fontSize: "0.9rem",
-              color: "#fca5a5",
+              fontSize: '0.9rem',
+              color: '#fca5a5',
             }}
           >
             {error}
@@ -199,16 +186,16 @@ export default function EditProductPage() {
         )}
         <button
           type="button"
-          onClick={() => router.push("/admin/products")}
+          onClick={() => router.push('/admin/products')}
           style={{
             marginTop: 8,
-            padding: "6px 12px",
+            padding: '6px 12px',
             borderRadius: 6,
-            border: "1px solid #4b5563",
-            background: "#111827",
-            color: "#e5e7eb",
-            cursor: "pointer",
-            fontSize: "0.85rem",
+            border: '1px solid #4b5563',
+            background: '#111827',
+            color: '#e5e7eb',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
           }}
         >
           Back to products
@@ -220,23 +207,23 @@ export default function EditProductPage() {
   return (
     <main
       style={{
-        minHeight: "100vh",
-        background: "#020617",
-        color: "#e5e7eb",
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
         padding: 24,
       }}
     >
       <div
         style={{
           maxWidth: 720,
-          margin: "0 auto",
+          margin: '0 auto',
         }}
       >
         <header
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             marginBottom: 24,
           }}
         >
@@ -246,8 +233,8 @@ export default function EditProductPage() {
               style={{
                 margin: 0,
                 marginTop: 4,
-                fontSize: "0.9rem",
-                color: "#9ca3af",
+                fontSize: '0.9rem',
+                color: '#9ca3af',
               }}
             >
               ID: <code>{productId}</code>
@@ -256,15 +243,15 @@ export default function EditProductPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/admin/products")}
+            onClick={() => router.push('/admin/products')}
             style={{
-              padding: "6px 12px",
+              padding: '6px 12px',
               borderRadius: 6,
-              border: "1px solid #4b5563",
-              background: "#111827",
-              color: "#e5e7eb",
-              cursor: "pointer",
-              fontSize: "0.85rem",
+              border: '1px solid #4b5563',
+              background: '#111827',
+              color: '#e5e7eb',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
             }}
           >
             Back to products
@@ -276,33 +263,31 @@ export default function EditProductPage() {
           style={{
             padding: 16,
             borderRadius: 12,
-            border: "1px solid #1f2937",
-            background: "#020617",
-            display: "grid",
+            border: '1px solid #1f2937',
+            background: '#020617',
+            display: 'grid',
             gap: 16,
           }}
         >
           {/* Name */}
           <div>
             <label
-              style={{ display: "block", marginBottom: 4, fontSize: "0.9rem" }}
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
             >
-              Name <span style={{ color: "#f97316" }}>*</span>
+              Name <span style={{ color: '#f97316' }}>*</span>
             </label>
             <input
               type="text"
               value={product.name}
-              onChange={(e) =>
-                handleFieldChange("name", e.target.value)
-              }
+              onChange={(e) => handleFieldChange('name', e.target.value)}
               required
               style={{
-                width: "100%",
-                padding: "8px 10px",
+                width: '100%',
+                padding: '8px 10px',
                 borderRadius: 8,
-                border: "1px solid #4b5563",
-                background: "#020617",
-                color: "#e5e7eb",
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
               }}
             />
           </div>
@@ -310,24 +295,22 @@ export default function EditProductPage() {
           {/* Description */}
           <div>
             <label
-              style={{ display: "block", marginBottom: 4, fontSize: "0.9rem" }}
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
             >
               Description
             </label>
             <textarea
               value={product.description}
-              onChange={(e) =>
-                handleFieldChange("description", e.target.value)
-              }
+              onChange={(e) => handleFieldChange('description', e.target.value)}
               rows={3}
               style={{
-                width: "100%",
-                padding: "8px 10px",
+                width: '100%',
+                padding: '8px 10px',
                 borderRadius: 8,
-                border: "1px solid #4b5563",
-                background: "#020617",
-                color: "#e5e7eb",
-                resize: "vertical",
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+                resize: 'vertical',
               }}
             />
           </div>
@@ -335,10 +318,10 @@ export default function EditProductPage() {
           {/* Price */}
           <div>
             <label
-              style={{ display: "block", marginBottom: 4, fontSize: "0.9rem" }}
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
             >
-              Price (USD){" "}
-              <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>
+              Price (USD){' '}
+              <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
                 e.g. 19.99
               </span>
             </label>
@@ -347,16 +330,14 @@ export default function EditProductPage() {
               min="0"
               step="0.01"
               value={product.priceInput}
-              onChange={(e) =>
-                handleFieldChange("priceInput", e.target.value)
-              }
+              onChange={(e) => handleFieldChange('priceInput', e.target.value)}
               style={{
-                width: "100%",
-                padding: "8px 10px",
+                width: '100%',
+                padding: '8px 10px',
                 borderRadius: 8,
-                border: "1px solid #4b5563",
-                background: "#020617",
-                color: "#e5e7eb",
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
               }}
             />
           </div>
@@ -364,7 +345,7 @@ export default function EditProductPage() {
           {/* Mockup image URL + preview */}
           <div>
             <label
-              style={{ display: "block", marginBottom: 4, fontSize: "0.9rem" }}
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
             >
               Mockup image URL (optional)
             </label>
@@ -372,29 +353,28 @@ export default function EditProductPage() {
               type="url"
               value={product.mockupImageUrl}
               onChange={(e) =>
-                handleFieldChange("mockupImageUrl", e.target.value)
+                handleFieldChange('mockupImageUrl', e.target.value)
               }
               placeholder="https://firebasestorage.googleapis.com/..."
               style={{
-                width: "100%",
-                padding: "8px 10px",
+                width: '100%',
+                padding: '8px 10px',
                 borderRadius: 8,
-                border: "1px solid #4b5563",
-                background: "#020617",
-                color: "#e5e7eb",
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
               }}
             />
             <p
               style={{
                 margin: 0,
                 marginTop: 4,
-                fontSize: "0.8rem",
-                color: "#9ca3af",
+                fontSize: '0.8rem',
+                color: '#9ca3af',
               }}
             >
-              Used as the main product preview image in Shop/Admin. You
-              can paste a Storage URL or derive it from an asset or
-              mockup.
+              Used as the main product preview image in Shop/Admin. You can
+              paste a Storage URL or derive it from an asset or mockup.
             </p>
 
             {product.mockupImageUrl && (
@@ -403,9 +383,9 @@ export default function EditProductPage() {
                   marginTop: 8,
                   padding: 8,
                   borderRadius: 8,
-                  border: "1px solid #374151",
-                  background: "#020617",
-                  display: "inline-block",
+                  border: '1px solid #374151',
+                  background: '#020617',
+                  display: 'inline-block',
                 }}
               >
                 <img
@@ -413,15 +393,15 @@ export default function EditProductPage() {
                   alt="Mockup preview"
                   onError={(e) =>
                     console.error(
-                      "[ADMIN] Mockup preview failed to load:",
-                      e.currentTarget.src
+                      '[ADMIN] Mockup preview failed to load:',
+                      e.currentTarget.src,
                     )
                   }
                   style={{
                     maxWidth: 260,
                     maxHeight: 260,
                     borderRadius: 6,
-                    display: "block",
+                    display: 'block',
                   }}
                 />
               </div>
@@ -431,14 +411,14 @@ export default function EditProductPage() {
           {/* Default asset ID + chooser */}
           <div>
             <label
-              style={{ display: "block", marginBottom: 4, fontSize: "0.9rem" }}
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
             >
               Default asset (optional)
             </label>
 
             <div
               style={{
-                display: "flex",
+                display: 'flex',
                 gap: 8,
                 marginBottom: 4,
               }}
@@ -447,30 +427,30 @@ export default function EditProductPage() {
                 type="text"
                 value={product.defaultAssetId}
                 onChange={(e) =>
-                  handleFieldChange("defaultAssetId", e.target.value)
+                  handleFieldChange('defaultAssetId', e.target.value)
                 }
                 placeholder="Asset ID (can also choose below)"
                 style={{
                   flex: 1,
-                  padding: "8px 10px",
+                  padding: '8px 10px',
                   borderRadius: 8,
-                  border: "1px solid #4b5563",
-                  background: "#020617",
-                  color: "#e5e7eb",
+                  border: '1px solid #4b5563',
+                  background: '#020617',
+                  color: '#e5e7eb',
                 }}
               />
               <button
                 type="button"
                 onClick={() => setAssetPickerOpen(true)}
                 style={{
-                  padding: "8px 10px",
+                  padding: '8px 10px',
                   borderRadius: 8,
-                  border: "1px solid #3b82f6",
-                  background: "#0b1120",
-                  color: "#bfdbfe",
-                  cursor: "pointer",
-                  fontSize: "0.85rem",
-                  whiteSpace: "nowrap",
+                  border: '1px solid #3b82f6',
+                  background: '#0b1120',
+                  color: '#bfdbfe',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 Choose from assets…
@@ -480,11 +460,11 @@ export default function EditProductPage() {
             <p
               style={{
                 margin: 0,
-                fontSize: "0.8rem",
-                color: "#9ca3af",
+                fontSize: '0.8rem',
+                color: '#9ca3af',
               }}
             >
-              Links this product to an asset in your <code>assets</code>{" "}
+              Links this product to an asset in your <code>assets</code>{' '}
               collection so Studio can use it as the default design.
             </p>
 
@@ -492,13 +472,13 @@ export default function EditProductPage() {
               <div
                 style={{
                   marginTop: 8,
-                  display: "flex",
-                  alignItems: "center",
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: 8,
                   padding: 8,
                   borderRadius: 8,
-                  border: "1px solid #1f2937",
-                  background: "#020617",
+                  border: '1px solid #1f2937',
+                  background: '#020617',
                 }}
               >
                 <div>
@@ -509,9 +489,9 @@ export default function EditProductPage() {
                       style={{
                         width: 48,
                         height: 48,
-                        objectFit: "cover",
+                        objectFit: 'cover',
                         borderRadius: 6,
-                        border: "1px solid #374151",
+                        border: '1px solid #374151',
                       }}
                     />
                   ) : (
@@ -520,12 +500,12 @@ export default function EditProductPage() {
                         width: 48,
                         height: 48,
                         borderRadius: 6,
-                        border: "1px dashed #374151",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "0.7rem",
-                        color: "#6b7280",
+                        border: '1px dashed #374151',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.7rem',
+                        color: '#6b7280',
                       }}
                     >
                       No image
@@ -535,7 +515,7 @@ export default function EditProductPage() {
                 <div>
                   <div
                     style={{
-                      fontSize: "0.85rem",
+                      fontSize: '0.85rem',
                       marginBottom: 2,
                     }}
                   >
@@ -543,9 +523,9 @@ export default function EditProductPage() {
                   </div>
                   <div
                     style={{
-                      fontSize: "0.7rem",
-                      color: "#6b7280",
-                      wordBreak: "break-all",
+                      fontSize: '0.7rem',
+                      color: '#6b7280',
+                      wordBreak: 'break-all',
                     }}
                   >
                     {selectedAsset.id}
@@ -558,8 +538,8 @@ export default function EditProductPage() {
           {/* Active toggle */}
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
+              display: 'flex',
+              alignItems: 'center',
               gap: 8,
             }}
           >
@@ -567,11 +547,9 @@ export default function EditProductPage() {
               id="active"
               type="checkbox"
               checked={product.active}
-              onChange={(e) =>
-                handleFieldChange("active", e.target.checked)
-              }
+              onChange={(e) => handleFieldChange('active', e.target.checked)}
             />
-            <label htmlFor="active" style={{ fontSize: "0.9rem" }}>
+            <label htmlFor="active" style={{ fontSize: '0.9rem' }}>
               Active (show in shop)
             </label>
           </div>
@@ -581,8 +559,8 @@ export default function EditProductPage() {
             <p
               style={{
                 margin: 0,
-                fontSize: "0.85rem",
-                color: "#fca5a5",
+                fontSize: '0.85rem',
+                color: '#fca5a5',
               }}
             >
               {error}
@@ -592,22 +570,22 @@ export default function EditProductPage() {
           <div
             style={{
               marginTop: 8,
-              display: "flex",
-              justifyContent: "flex-end",
+              display: 'flex',
+              justifyContent: 'flex-end',
               gap: 8,
             }}
           >
             <button
               type="button"
-              onClick={() => router.push("/admin/products")}
+              onClick={() => router.push('/admin/products')}
               style={{
-                padding: "8px 12px",
+                padding: '8px 12px',
                 borderRadius: 8,
-                border: "1px solid #4b5563",
-                background: "#111827",
-                color: "#e5e7eb",
-                cursor: "pointer",
-                fontSize: "0.9rem",
+                border: '1px solid #4b5563',
+                background: '#111827',
+                color: '#e5e7eb',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
               }}
             >
               Cancel
@@ -617,17 +595,17 @@ export default function EditProductPage() {
               type="submit"
               disabled={saving}
               style={{
-                padding: "8px 14px",
+                padding: '8px 14px',
                 borderRadius: 8,
-                border: "1px solid #10b981",
-                background: saving ? "#064e3b" : "#022c22",
-                color: "#a7f3d0",
-                cursor: saving ? "default" : "pointer",
-                fontSize: "0.9rem",
+                border: '1px solid #10b981',
+                background: saving ? '#064e3b' : '#022c22',
+                color: '#a7f3d0',
+                cursor: saving ? 'default' : 'pointer',
+                fontSize: '0.9rem',
                 opacity: saving ? 0.8 : 1,
               }}
             >
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
         </form>

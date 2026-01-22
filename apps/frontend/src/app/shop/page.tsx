@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -31,7 +32,7 @@ export default function ShopPage() {
         const q = query(
           productsCol,
           where('active', '==', true),
-          orderBy('name', 'asc')
+          orderBy('name', 'asc'),
         );
         const snap = await getDocs(q);
 
@@ -178,7 +179,7 @@ export default function ShopPage() {
                     }}
                   >
                     {p.mockupImageUrl ? (
-                      <img
+                      <image
                         src={p.mockupImageUrl}
                         alt={p.name}
                         style={{
@@ -190,7 +191,7 @@ export default function ShopPage() {
                         onError={(e) =>
                           console.error(
                             '[SHOP] Failed to load product image:',
-                            e.currentTarget.src
+                            e.currentTarget.src,
                           )
                         }
                       />
