@@ -6,23 +6,25 @@ import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
 
 export const runtime = 'nodejs';
 
-function mustEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
+// 1. Safe Env Getter: Returns null instead of throwing during BUILD
+function getEnvSafe(name: string): string | null {
+  return process.env[name] ?? null;
 }
 
 function log(event: string, data: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), event, ...data }));
 }
 
-const stripeSecretKey = mustEnv('STRIPE_SECRET_KEY');
-const webhookSecret = mustEnv('STRIPE_WEBHOOK_SECRET');
+const stripeSecretKey = getEnvSafe('STRIPE_SECRET_KEY');
+const webhookSecret = getEnvSafe('STRIPE_WEBHOOK_SECRET');
 
-// Use your account version (or set STRIPE_API_VERSION in env)
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: (process.env.STRIPE_API_VERSION ?? '2025-11-17.clover') as any,
-});
+// 2. Initialize Stripe only if key exists.
+// Hardcode the version to match your other route (2025-12-15.clover)
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, {
+      apiVersion: '2025-12-15.clover' as any,
+    })
+  : null;
 
 async function upsertOrderFromCheckoutSession(stripeEvent: Stripe.Event) {
   // We only care about checkout.session.* events here
@@ -130,10 +132,22 @@ async function upsertOrderFromCheckoutSession(stripeEvent: Stripe.Event) {
 }
 
 export async function POST(req: NextRequest) {
+  // 3. Runtime Check: If these are missing on the VM, then we throw the error.
+  if (!stripe || !webhookSecret) {
+    log('stripe_webhook.config_error', {
+      hasStripe: !!stripe,
+      hasWebhookSecret: !!webhookSecret,
+    });
+    return NextResponse.json(
+      { error: 'Webhook not configured' },
+      { status: 500 },
+    );
+  }
+
   const sig = req.headers.get('stripe-signature');
   if (!sig) {
     return NextResponse.json(
-      { ok: false, error: 'Missing stripe-signature header' },
+      { ok: false, error: 'Missing signature' },
       { status: 400 },
     );
   }
@@ -141,7 +155,8 @@ export async function POST(req: NextRequest) {
   let stripeEvent: Stripe.Event;
 
   try {
-    const rawBody = await req.text(); // required for signature verification
+    const rawBody = await req.text();
+    // 4. Use the initialized stripe object
     stripeEvent = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err: any) {
     log('stripe_webhook.signature_failed', {

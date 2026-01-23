@@ -23,10 +23,10 @@ function getOrigin(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // Move the error check HERE.
-  // This only runs at RUNTIME (on your server), not during the build.
+  // 3. Move the check INSIDE the POST function.
+  // This only runs when a user actually tries to buy something.
   if (!stripe) {
-    console.error('STRIPE_SECRET_KEY is missing from environment variables.');
+    console.error('STRIPE_SECRET_KEY is missing from environment.');
     return NextResponse.json(
       { error: 'Stripe is not configured' },
       { status: 500 },
