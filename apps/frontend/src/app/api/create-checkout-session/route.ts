@@ -6,12 +6,11 @@ import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
 export const runtime = 'nodejs';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey)
-  throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
 
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2025-11-17.clover', // pick whatever you use elsewhere; keep consistent
-});
+// If key is missing, we create a 'null' client to avoid crashing the BUILD
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, { apiVersion: '2025-12-15.clover' })
+  : null;
 
 // Helpful when behind Nginx / reverse proxy
 function getOrigin(req: NextRequest) {
@@ -24,6 +23,15 @@ function getOrigin(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Move the error check HERE.
+  // This only runs at RUNTIME (on your server), not during the build.
+  if (!stripe) {
+    console.error('STRIPE_SECRET_KEY is missing from environment variables.');
+    return NextResponse.json(
+      { error: 'Stripe is not configured' },
+      { status: 500 },
+    );
+  }
   const checkoutId = randomUUID(); // our Firestore doc id
   const createdAtMs = Date.now();
 
