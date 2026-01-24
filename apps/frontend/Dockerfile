@@ -1,45 +1,35 @@
-# ---------- Build stage ----------
-FROM node:20-alpine AS builder
-
-# Create app directory
+# Stage 1: Dependencies
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-# Copy package files first (better layer caching)
 COPY package*.json ./
-
-# Install dependencies
+# We install everything, including devDependencies like TypeScript
 RUN npm install
 
-# Copy the rest of the app source
+# Stage 2: Builder
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# If you have a .env.production file, copy it in so Next can see it at build time
-# (Optional, but helpful if you use NEXT_PUBLIC_ vars at build)
-# COPY .env.production .env.production
-
-# Build Next.js app (uses .env.production automatically if present)
+# This ensures TypeScript is available during the build
+RUN npx tsc --version
 RUN npm run build
 
-# ---------- Runtime stage ----------
+# Stage 3: Runner
 FROM node:20-alpine AS runner
-
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy package files and install *runtime* depss
-COPY package*.json ./
-RUN npm install --omit=dev
+# Create the folder structure the app expects
+RUN mkdir -p ops/firebase
 
-# Copy built app and public assets from builder stage
-COPY --from=builder /app/.next ./.next
+# Copy only what is needed to run the app
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.js ./next.config.js
 
-# If you have any config files needed at runtime (next.config, etc.), copy them too
-COPY --from=builder /app/next.config.* ./
-
-# Next.js will listen on port 3000 by default
 EXPOSE 3000
 
-# Start the production server
 CMD ["npm", "start"]
