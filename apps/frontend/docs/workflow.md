@@ -32,14 +32,22 @@ When your feature is ready to go live:
 git push origin feature/your-feature-name
 ```
 
-### Step 2: Create Pull Request (PR)
-1.  Go to the [GitHub Repository](https://github.com/jacknjil/Project_AI_Merch).
-2.  Click "Compare & pull request".
-3.  Review your changes and merge the PR into the `main` branch.
+### Step 2: Create & Merge Pull Request (The "Go Live" Button)
+This is the most critical step. It moves code from your "draft" branch to the "production" branch.
+
+1.  **Navigate**: Go to the [GitHub Repository](https://github.com/jacknjil/Project_AI_Merch).
+2.  **Compare**: You will often see a yellow bar saying "feature/xyz had recent pushes". Click **"Compare & pull request"**.
+3.  **Create**:
+    - Add a title (e.g., "feat: Add Product Catalog").
+    - Click **"Create pull request"**.
+4.  **Merge (The Finish Line)**:
+    - Scroll to the bottom of the PR page.
+    - Click the green **"Merge pull request"** button.
+    - Click **"Confirm merge"**.
+
+> **Note**: Merging into `main` automatically triggers the live deployment via Firebase App Hosting.
 
 ## 3. Automation (Firebase App Hosting)
-**This requires zero manual effort.**
-
 1.  **Detection**: Firebase detects the merge to `main`.
 2.  **Build**: It automatically runs `npm run build` in a secure cloud container.
 3.  **Deploy**: If the build passes, it replaces the live traffic with the new version.
