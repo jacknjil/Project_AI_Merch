@@ -1,182 +1,48 @@
-import Stripe from 'stripe';
-import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'crypto';
-import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
+import { NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { CartItem } from '@/context/CartContext';
 
-export const runtime = 'nodejs';
-
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-
-// If key is missing, we create a 'null' client to avoid crashing the BUILD
-const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: '2025-12-15.clover' })
-  : null;
-
-// Helpful when behind Nginx / reverse proxy
-function getOrigin(req: NextRequest) {
-  const proto = req.headers.get('x-forwarded-proto') || 'https';
-  const host =
-    req.headers.get('x-forwarded-host') ||
-    req.headers.get('host') ||
-    'localhost:3000';
-  return `${proto}://${host}`;
-}
-
-export async function POST(req: NextRequest) {
-  // 3. Move the check INSIDE the POST function.
-  // This only runs when a user actually tries to buy something.
-  if (!stripe) {
-    console.error('STRIPE_SECRET_KEY is missing from environment.');
-    return NextResponse.json(
-      { error: 'Stripe is not configured' },
-      { status: 500 },
-    );
-  }
-  const checkoutId = randomUUID(); // our Firestore doc id
-  const createdAtMs = Date.now();
-
-  // Create ref once so catch() can update it too
-  const checkoutRef = adminDb.collection('checkout_sessions').doc(checkoutId);
-
+export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const { items }: { items: CartItem[] } = await req.json();
 
-    const items: Array<{
-      id: string;
-      assetId: string;
-      productId: string;
-      assetTitle: string;
-      productName: string;
-      quantity: number;
-      mockupImageUrl?: string | null;
-      scale?: number;
-      position?: { x: number; y: number };
-    }> = body.items ?? [];
-
-    if (!items.length) {
-      return NextResponse.json({ error: 'No items provided' }, { status: 400 });
+    if (!items || items.length === 0) {
+      return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
     }
 
-    // TEMP: flat price per item (e.g. $25.00)
-    const UNIT_AMOUNT_CENTS = 2500;
-
-    const normalizedItems = items.map((i) => ({
-      ...i,
-      quantity: Number.isFinite(i.quantity) && i.quantity > 0 ? i.quantity : 1,
-    }));
-
-    const itemCount = normalizedItems.reduce((sum, i) => sum + i.quantity, 0);
-    const subtotalCents = normalizedItems.reduce(
-      (sum, i) => sum + i.quantity * UNIT_AMOUNT_CENTS,
-      0,
-    );
-
-    // ✅ STEP A-1: create Firestore checkout_sessions doc BEFORE Stripe redirect
-    await checkoutRef.set({
-      checkoutId,
-      status: 'created',
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-
-      user: {
-        userId: body.userId ?? 'unknown',
-      },
-
-      amounts: {
-        currency: 'usd',
-        unitAmountCents: UNIT_AMOUNT_CENTS,
-        itemCount,
-        subtotalCents,
-      },
-
-      stripe: {
-        sessionId: null,
-        paymentIntentId: null,
-      },
-
-      items: normalizedItems.map((i) => ({
-        cartItemId: i.id,
-        assetId: i.assetId,
-        assetTitle: i.assetTitle,
-        productId: i.productId,
-        productName: i.productName,
-        quantity: i.quantity,
-
-        // optional for manual fulfillment:
-        mockupImageUrl: i.mockupImageUrl ?? null,
-        scale: i.scale ?? null,
-        position: i.position ?? null,
-      })),
-
-      debug: {
-        createdAtMs,
-      },
-    });
-
-    // Stripe line items
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
-      normalizedItems.map((item) => ({
-        quantity: item.quantity,
-        price_data: {
-          currency: 'usd',
-          unit_amount: UNIT_AMOUNT_CENTS,
-          product_data: {
-            name: `${item.productName} - ${item.assetTitle}`,
-            metadata: {
-              assetId: item.assetId,
-              productId: item.productId,
-              cartItemId: item.id,
-            },
-          },
-        },
-      }));
-
-    const origin = getOrigin(req);
-
-    // ✅ STEP A-2: create Stripe session with checkoutId in metadata
     const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: items.map((item) => {
+        // Fallback for missing images in legacy data
+        const imageUrl = item.product.mockupImageUrl || 
+                         item.product.mockup_image_url || 
+                         item.product.imageUrl || 
+                         item.product.mockup_base_image;
+                         
+        const images = imageUrl ? [imageUrl] : [];
+        const price = item.product.price ?? item.product.base_price ?? 0;
+
+        return {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: item.product.name,
+              description: item.assetId ? `Customized (Asset: ${item.assetId})` : undefined,
+              images: images,
+            },
+            unit_amount: Math.round(price * 100), // Stripe expects cents
+          },
+          quantity: item.quantity,
+        };
+      }),
       mode: 'payment',
-      line_items: lineItems,
-      success_url: `${origin}/cart?status=success&checkoutId=${checkoutId}`,
-      cancel_url: `${origin}/cart?status=cancel&checkoutId=${checkoutId}`,
-
-      metadata: {
-        checkoutId,
-        userId: body.userId ?? 'unknown',
-      },
+      success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/orders?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/cart?canceled=true`,
     });
 
-    // ✅ STEP A-3: update checkout_sessions doc with stripe.sessionId
-    await checkoutRef.update({
-      status: 'stripe_created',
-      updatedAt: FieldValue.serverTimestamp(),
-      'stripe.sessionId': session.id,
-      'stripe.paymentIntentId':
-        typeof session.payment_intent === 'string'
-          ? session.payment_intent
-          : null,
-    });
-
-    return NextResponse.json({ url: session.url, checkoutId });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return NextResponse.json({ sessionId: session.id });
   } catch (err: any) {
-    console.error('Error creating checkout session:', err);
-
-    // Best effort: mark Firestore doc as error (if it exists)
-    try {
-      await checkoutRef.set(
-        {
-          status: 'error',
-          updatedAt: FieldValue.serverTimestamp(),
-          error: err?.message ?? 'Internal server error',
-        },
-        { merge: true },
-      );
-    } catch {}
-
-    return NextResponse.json(
-      { error: err?.message ?? 'Internal server error' },
-      { status: 500 },
-    );
+    console.error('Stripe error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

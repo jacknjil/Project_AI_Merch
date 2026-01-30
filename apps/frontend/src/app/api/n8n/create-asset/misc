@@ -1,0 +1,6 @@
+if (!dataUrl || !assetId || !productId) {
+  return NextResponse.json(
+    { error: 'Missing dataUrl, assetId, or productId' },
+    { status: 400 },
+  );
+}

@@ -34,7 +34,7 @@ function getOrigin(req: NextRequest) {
 // YYYY-MM-DD in America/New_York
 function nyDayKey(d = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
+    timeZone: 'America/Los Angelos',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
     }
 
     // DAILY CAP counter doc (NY day key)
-    const DAILY_CAP = Number(process.env.DAILY_CAP ?? 10);
+    const DAILY_CAP = Number(process.env.DAILY_CAP ?? 15);
     const dayKey = nyDayKey();
     const capRef = adminDb
       .collection('rate_limits')
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
       if (!snap.exists) {
         tx.set(capRef, {
           day: dayKey,
-          tz: 'America/New_York',
+          tz: 'America/Los Angelos',
           used: count,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
