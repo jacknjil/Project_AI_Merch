@@ -300,7 +300,7 @@ export async function POST(req: NextRequest) {
 
     // 3) Daily cap (America/New_York boundary by default)
     const DAILY_CAP = Number(process.env.DAILY_CAP ?? 10);
-    const DAILY_TZ = process.env.DAILY_TZ || 'America/New_York';
+    const DAILY_TZ = process.env.DAILY_TZ || 'America/Los Angelos';
 
     const { used: usedToday, dayStart } = await getUsedTodayCount(DAILY_TZ);
 

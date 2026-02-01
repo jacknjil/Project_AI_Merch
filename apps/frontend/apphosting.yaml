@@ -1,0 +1,16 @@
+serviceId: ai-merch-store
+region: us-central1
+availability:
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+environmentVariables:
+  - name: NEXT_PUBLIC_BASE_URL
+    value: https://ai-merch-store.web.app
+  - name: DAILY_TZ
+    value: America/Los_Angeles
+  - name: DAILY_CAP
+    value: "50"
+env:
+  - variable: TOP_SECRET_KEY
+    secret: mySecret
