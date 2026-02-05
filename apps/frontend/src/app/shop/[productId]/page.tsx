@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -5,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import Image from 'next/Image';
 
 type ProductDoc = {
   id: string;
@@ -228,7 +230,7 @@ export default function ProductDetailPage() {
                 }}
               >
                 {product.mockupImageUrl ? (
-                  <img
+                  <Image
                     src={product.mockupImageUrl}
                     alt={product.name}
                     style={{
@@ -240,7 +242,7 @@ export default function ProductDetailPage() {
                     onError={(e) =>
                       console.error(
                         '[SHOP] Failed to load product image:',
-                        e.currentTarget.src
+                        e.currentTarget.src,
                       )
                     }
                   />

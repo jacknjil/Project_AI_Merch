@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -35,6 +35,7 @@ yarn-error.log*
 
 # Firebase service accounts
 firebase-service-account.json
+ops/firebase-admin/serviceAccount.json
 
 # vercel
 .vercel

@@ -2,6 +2,7 @@
 const nextConfig = {
   output: 'standalone',
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -14,6 +15,10 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com', // Google Auth profiles
+      },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co', // Google Auth profiles
       },
     ],
   },

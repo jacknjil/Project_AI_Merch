@@ -18,7 +18,7 @@ type ProductDoc = {
   id: string;
   name: string;
   base_price?: number;
-  mockup_base_image?: string;
+  mockupImageUrl?: string;
   category?: string;
 };
 
@@ -31,6 +31,7 @@ export default function AssetDetailPage() {
   const [products, setProducts] = useState<ProductDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const FALLBACK_MOCK = 'https://placehold.co/600x400?text=Mock+Image+Fallback';
 
   useEffect(() => {
     async function load() {
@@ -59,7 +60,7 @@ export default function AssetDetailPage() {
             id: d.id,
             name: p.name ?? 'Unnamed product',
             base_price: p.base_price,
-            mockup_base_image: p.mockup_base_image,
+            mockupImageUrl: p.mockupImageUrl ?? p.mockup_base_image ?? null,
             category: p.category,
           };
         });
@@ -132,6 +133,8 @@ export default function AssetDetailPage() {
               src={assetSrc}
               alt={asset.title}
               style={{ width: '100%', display: 'block' }}
+              width={800}
+              height={450}
             />
           ) : (
             <div
@@ -178,25 +181,44 @@ export default function AssetDetailPage() {
                   width: '100%',
                   aspectRatio: '1 / 1',
                   background: '#111827',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  position: 'relative',
                   overflow: 'hidden',
                 }}
               >
-                {p.mockup_base_image ? (
+                {p.mockupImageUrl ? (
                   <Image
-                    src={p.mockup_base_image}
+                    src={p.mockupImageUrl}
                     alt={p.name}
                     fill
-                    sizes="max-width: 1024px 50vx, 220px"
+                    sizes="(max-width: 1024px) 50vw, 220px"
                     style={{
                       objectFit: 'cover',
                     }}
                   />
                 ) : (
-                  <span>No mockup</span>
+                  <Image
+                    src={FALLBACK_MOCK}
+                    alt="No mockup yet"
+                    width={256}
+                    height={256}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
                 )}
+                <span
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  No mockup
+                </span>
               </div>
               <div style={{ padding: 12, flexGrow: 1 }}>
                 <h3
