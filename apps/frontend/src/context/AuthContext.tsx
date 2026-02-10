@@ -1,6 +1,12 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -19,22 +25,21 @@ export const useAuthContext = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
-    // Check if auth is initialized (it might be {} as any in the server/build context)
-    if (!auth || !auth.onAuthStateChanged) {
-      setLoading(false);
-      return;
-    }
-
+    // 1. Start the listener
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
+      if (user) {
+        // User is signed in
+        setUser(user);
+      } else {
+        // User is signed out
+        setUser(null);
+      }
+      setLoading(false); // Stop the loading state once we have an answer
     });
 
     return () => unsubscribe();
-  }, []);
-
+  }, []); // Depend on auth so it re-runs only if auth service changes
   return (
     <AuthContext.Provider value={{ user, loading }}>
       {!loading && children}

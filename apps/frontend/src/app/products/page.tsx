@@ -3,8 +3,6 @@
 
 import Link from 'next/link';
 import { useProducts } from '@/hooks/useProducts';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 import {
   Card,
   //CardContent,
@@ -34,7 +32,6 @@ export default function ProductsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50/50">
-      <Header />
       <main className="flex-1 container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold font-heading mb-2">
@@ -120,7 +117,6 @@ export default function ProductsPage() {
           </div>
         )}
       </main>
-      <Footer />
     </div>
   );
 }

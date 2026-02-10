@@ -1,0 +1,5598 @@
+--- PROJECT MAP ---
+.
+├── AI_Merch_Scripts
+├── apphosting.yaml
+├── audit.sh
+├── docker-compose.yml
+├── Dockerfile
+├── docs
+│   ├── deployment.md
+│   └── workflow.md
+├── eslint.config.mjs
+├── firebase-debug.log
+├── next.config.js
+├── next-env.d.ts
+├── ops
+│   └── firebase-admin
+│       ├── package.json
+│       ├── package-lock.json
+│       └── reset-assets.mjs
+├── package.json
+├── package-lock.json
+├── postcss.config.mjs
+├── project_audit.txt
+├── public
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── mock.png
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md
+├── src
+│   ├── app
+│   │   ├── admin
+│   │   │   ├── orders
+│   │   │   │   ├── [ordersId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   └── products
+│   │   │       ├── new
+│   │   │       │   └── page.tsx
+│   │   │       ├── page.tsx
+│   │   │       └── [productId]
+│   │   │           └── page.tsx
+│   │   ├── api
+│   │   │   ├── admin
+│   │   │   │   └── orders
+│   │   │   │       ├── [orderId]
+│   │   │   │       │   └── route.ts
+│   │   │   │       └── route.ts
+│   │   │   ├── create-checkout-session
+│   │   │   │   └── route.ts
+│   │   │   ├── generate-asset
+│   │   │   │   └── route.ts
+│   │   │   ├── n8n
+│   │   │   │   └── create-asset
+│   │   │   │       ├── misc
+│   │   │   │       └── route.ts
+│   │   │   ├── save-mockup
+│   │   │   │   └── route.ts
+│   │   │   └── stripe-webhook
+│   │   │       └── route.ts
+│   │   ├── asset
+│   │   │   └── [assetId]
+│   │   │       └── page.tsx
+│   │   ├── cart
+│   │   │   └── page.tsx
+│   │   ├── checkout
+│   │   │   ├── cancel
+│   │   │   │   └── page.tsx
+│   │   │   └── success
+│   │   │       └── page.tsx
+│   │   ├── design-system
+│   │   │   └── page.tsx
+│   │   ├── gallery
+│   │   │   └── page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── login
+│   │   │   └── page.tsx
+│   │   ├── mockups
+│   │   │   └── page.tsx
+│   │   ├── orders
+│   │   │   └── page.tsx
+│   │   ├── page.tsx
+│   │   ├── products
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── [productId]
+│   │   │       └── page.tsx
+│   │   ├── shop
+│   │   │   ├── page.tsx
+│   │   │   └── [productId]
+│   │   │       └── page.tsx
+│   │   ├── signup
+│   │   │   └── page.tsx
+│   │   ├── studio
+│   │   │   ├── generate
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   └── test
+│   │       └── page.tsx
+│   ├── components
+│   │   ├── admin
+│   │   │   └── AssetPicker.tsx
+│   │   ├── auth
+│   │   ├── cart
+│   │   │   └── CartSheet.tsx
+│   │   ├── layout
+│   │   │   ├── Footer.tsx
+│   │   │   └── Header.tsx
+│   │   └── ui
+│   │       ├── Button.tsx
+│   │       ├── Card.tsx
+│   │       └── Input.tsx
+│   ├── context
+│   │   ├── AuthContext.tsx
+│   │   └── CartContext.tsx
+│   ├── hooks
+│   │   ├── useAuth.ts
+│   │   └── useProducts.ts
+│   └── lib
+│       ├── firebaseAdmin.ts
+│       ├── firebase.ts
+│       ├── openai.ts
+│       ├── promptTemplates.ts
+│       ├── stripe.ts
+│       ├── types.ts
+│       └── useAnonUser.ts
+└── tsconfig.json
+
+52 directories, 77 files
+
+--- ROOT LAYOUT ---
+import type { Metadata } from 'next';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { AuthProvider } from '@/context/AuthContext';
+import { CartProvider } from '@/context/CartContext';
+import { CartSheet } from '@/components/cart/CartSheet';
+import './globals.css';
+
+// This is allowed because this file is now a Server Component
+export const metadata: Metadata = {
+  title: 'AI Merch Engine',
+  description: 'AI-powered merch studio.',
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body className="bg-black text-white antialiased min-h-screen flex flex-col">
+        <AuthProvider>
+          <CartProvider>
+            <Header />
+            <main className="flex-1">{children}</main>
+            <CartSheet />
+            <Footer />
+          </CartProvider>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}
+
+--- PAGE REGISTRY ---
+
+FILE: src/app/admin/orders/[ordersId]/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// src/app/admin/orders/[orderId]/page.tsx
+import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
+import { redirect } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
+
+async function markFulfilled(orderId: string) {
+  'use server';
+  await adminDb
+    .collection('orders')
+    .doc(orderId)
+    .set(
+      {
+        status: 'fulfilled',
+        fulfillment: {
+          status: 'fulfilled',
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+  redirect(`/admin/orders/${orderId}`);
+}
+
+// --- FIX STARTS HERE ---
+export default async function AdminOrderDetail({
+  params,
+}: {
+  params: Promise<{ orderId: string }>; // 1. Added Promise wrapper
+}) {
+  const resolvedParams = await params; // 2. Unpack the promise
+  const orderId = resolvedParams.orderId; // 3. Use this variable instead of params.orderId
+
+  // Use the new 'orderId' variable for the database call
+  const snap = await adminDb.collection('orders').doc(orderId).get();
+
+  if (!snap.exists) return <div style={{ padding: 24 }}>Order not found.</div>;
+
+  const order = { orderId: snap.id, ...(snap.data() as any) };
+
+  return (
+    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
+      >
+        <div>
+          {/* Use the new 'orderId' here */}
+          <h1 style={{ fontSize: 24, fontWeight: 700 }}>{orderId}</h1>
+          <div style={{ opacity: 0.8 }}>
+            status: {order.status} • fulfillment: {order.fulfillment?.status}
+          </div>
+        </div>
+
+        {/* Use the new 'orderId' here for the form action */}
+        <form action={markFulfilled.bind(null, orderId)}>
+          <button
+            type="submit"
+            style={{ padding: '10px 12px', borderRadius: 10 }}
+          >
+            Mark fulfilled
+          </button>
+        </form>
+      </div>
+
+      <pre
+        style={{
+          marginTop: 16,
+          padding: 12,
+          borderRadius: 12,
+          border: '1px solid #333',
+          overflowX: 'auto',
+        }}
+      >
+        {JSON.stringify(order, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
+FILE: src/app/admin/orders/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// src/app/admin/orders/page.tsx
+import Link from 'next/link';
+import { adminDb } from '@/lib/firebaseAdmin';
+
+export const dynamic = 'force-dynamic';
+
+type Order = {
+  orderId: string;
+  status?: string;
+  createdAt?: any;
+  amounts?: { subtotalCents?: number; currency?: string };
+  customer?: { email?: string | null; name?: string | null };
+  fulfillment?: { status?: string; notes?: string | null };
+};
+
+export default async function AdminOrdersPage() {
+  const snap = await adminDb
+    .collection('orders')
+    .orderBy('createdAt', 'desc')
+    .limit(50)
+    .get();
+
+  const orders: Order[] = snap.docs.map((d) => ({
+    orderId: d.id,
+    ...(d.data() as any),
+  }));
+
+  return (
+    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700 }}>Orders</h1>
+      <p style={{ marginTop: 8, opacity: 0.8 }}>
+        Manual fulfillment MVP. Latest orders first.
+      </p>
+
+      <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
+        {orders.map((o) => (
+          <div
+            key={o.orderId}
+            style={{ border: '1px solid #333', borderRadius: 12, padding: 12 }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700 }}>
+                  <Link href={`/admin/orders/${o.orderId}`}>{o.orderId}</Link>
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.8 }}>
+                  {o.customer?.email ?? 'no email'} • status:{' '}
+                  {o.status ?? 'unknown'} • fulfillment:{' '}
+                  {o.fulfillment?.status ?? 'n/a'}
+                </div>
+              </div>
+
+              <div style={{ fontSize: 14, opacity: 0.9 }}>
+                {o.amounts?.subtotalCents != null
+                  ? `$${(o.amounts.subtotalCents / 100).toFixed(2)}`
+                  : ''}
+                {o.amounts?.currency
+                  ? ` ${String(o.amounts.currency).toUpperCase()}`
+                  : ''}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {orders.length === 0 && (
+          <div style={{ opacity: 0.8, marginTop: 12 }}>No orders yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+FILE: src/app/admin/products/new/page.tsx
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import React, { useState, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import AssetPicker, { AssetDoc } from '@/components/admin/AssetPicker';
+
+export const dynamic = 'force-dynamic';
+
+export default function NewProductPage() {
+  const router = useRouter();
+
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [priceInput, setPriceInput] = useState('19.99');
+  const [mockupImageUrl, setMockupImageUrl] = useState('');
+  const [defaultAssetId, setDefaultAssetId] = useState('');
+  const [active, setActive] = useState(true);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Asset picker state
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<AssetDoc | null>(null);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const priceNumber = parseFloat(priceInput);
+    if (!name.trim()) {
+      setError('Name is required.');
+      return;
+    }
+    if (Number.isNaN(priceNumber) || priceNumber < 0) {
+      setError('Price must be a non-negative number.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const docRef = await addDoc(collection(db, 'products'), {
+        name: name.trim(),
+        description: description.trim(),
+        price: priceNumber,
+        mockupImageUrl: mockupImageUrl.trim() || null,
+        defaultAssetId: defaultAssetId.trim() || null,
+        active,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      console.log('[ADMIN] Created product:', docRef.id);
+      router.push(`/admin/products/${docRef.id}`);
+    } catch (err: any) {
+      console.error('[ADMIN] Error creating product:', err);
+      setError(err?.message || 'Failed to create product.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAssetSelected = (asset: AssetDoc) => {
+    setSelectedAsset(asset);
+    setDefaultAssetId(asset.id);
+
+    // If no mockup yet, use asset image as a sensible default
+    if (!mockupImageUrl && asset.imageUrl) {
+      setMockupImageUrl(asset.imageUrl);
+    }
+
+    setAssetPickerOpen(false);
+  };
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 720,
+          margin: '0 auto',
+        }}
+      >
+        <header
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 24,
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0 }}>New Product</h1>
+            <p
+              style={{
+                margin: 0,
+                marginTop: 4,
+                fontSize: '0.9rem',
+                color: '#9ca3af',
+              }}
+            >
+              Create a product document that Studio, Shop, and Cart can use.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push('/admin/products')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid #4b5563',
+              background: '#111827',
+              color: '#e5e7eb',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+            }}
+          >
+            Back to products
+          </button>
+        </header>
+
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            padding: 16,
+            borderRadius: 12,
+            border: '1px solid #1f2937',
+            background: '#020617',
+            display: 'grid',
+            gap: 16,
+          }}
+        >
+          {/* Name */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Name <span style={{ color: '#f97316' }}>*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+                resize: 'vertical',
+              }}
+            />
+          </div>
+
+          {/* Price */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Price (USD){' '}
+              <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+                e.g. 19.99
+              </span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* Mockup image URL + preview */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Mockup image URL (optional)
+            </label>
+            <input
+              type="url"
+              value={mockupImageUrl}
+              onChange={(e) => setMockupImageUrl(e.target.value)}
+              placeholder="https://firebasestorage.googleapis.com/..."
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+            <p
+              style={{
+                margin: 0,
+                marginTop: 4,
+                fontSize: '0.8rem',
+                color: '#9ca3af',
+              }}
+            >
+              This can be a Storage URL for a product mockup. Cart/Shop can use
+              it as a preview.
+            </p>
+
+            {mockupImageUrl && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 8,
+                  borderRadius: 8,
+                  border: '1px solid #374151',
+                  background: '#020617',
+                  display: 'inline-block',
+                }}
+              >
+                <img
+                  src={mockupImageUrl}
+                  alt="Mockup preview"
+                  onError={(e) =>
+                    console.error(
+                      '[ADMIN] Mockup preview failed to load:',
+                      e.currentTarget.src,
+                    )
+                  }
+                  style={{
+                    maxWidth: 260,
+                    maxHeight: 260,
+                    borderRadius: 6,
+                    display: 'block',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Default asset ID + chooser */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Default asset (optional)
+            </label>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginBottom: 4,
+              }}
+            >
+              <input
+                type="text"
+                value={defaultAssetId}
+                onChange={(e) => setDefaultAssetId(e.target.value)}
+                placeholder="Asset ID (can also choose below)"
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #4b5563',
+                  background: '#020617',
+                  color: '#e5e7eb',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setAssetPickerOpen(true)}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #3b82f6',
+                  background: '#0b1120',
+                  color: '#bfdbfe',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Choose from assets…
+              </button>
+            </div>
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.8rem',
+                color: '#9ca3af',
+              }}
+            >
+              Links this product to an asset in your <code>assets</code>{' '}
+              collection so Studio can use it as the default design. You can
+              either paste an ID or pick from your assets.
+            </p>
+
+            {selectedAsset && (
+              <div
+                style={{
+                  marginTop: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: 8,
+                  borderRadius: 8,
+                  border: '1px solid #1f2937',
+                  background: '#020617',
+                }}
+              >
+                <div>
+                  {selectedAsset.imageUrl ? (
+                    <img
+                      src={selectedAsset.imageUrl}
+                      alt={selectedAsset.title}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        objectFit: 'cover',
+                        borderRadius: 6,
+                        border: '1px solid #374151',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 6,
+                        border: '1px dashed #374151',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.7rem',
+                        color: '#6b7280',
+                      }}
+                    >
+                      No image
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      marginBottom: 2,
+                    }}
+                  >
+                    {selectedAsset.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '0.7rem',
+                      color: '#6b7280',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {selectedAsset.id}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Active toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <input
+              id="active"
+              type="checkbox"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+            />
+            <label htmlFor="active" style={{ fontSize: '0.9rem' }}>
+              Active (show in shop)
+            </label>
+          </div>
+
+          {/* Error + submit */}
+          {error && (
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.85rem',
+                color: '#fca5a5',
+              }}
+            >
+              {error}
+            </p>
+          )}
+
+          <div
+            style={{
+              marginTop: 8,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => router.push('/admin/products')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#111827',
+                color: '#e5e7eb',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid #10b981',
+                background: submitting ? '#064e3b' : '#022c22',
+                color: '#a7f3d0',
+                cursor: submitting ? 'default' : 'pointer',
+                fontSize: '0.9rem',
+                opacity: submitting ? 0.8 : 1,
+              }}
+            >
+              {submitting ? 'Creating…' : 'Create product'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {assetPickerOpen && (
+        <AssetPicker
+          onSelect={handleAssetSelected}
+          onClose={() => setAssetPickerOpen(false)}
+        />
+      )}
+    </main>
+  );
+}
+
+FILE: src/app/admin/products/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+type ProductDoc = {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  active?: boolean;
+  mockupImageUrl?: string | null;
+  defaultAssetId?: string | null;
+};
+
+export default function AdminProductsPage() {
+  const [products, setProducts] = useState<ProductDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setError(null);
+        setLoading(true);
+
+        const productsCol = collection(db, 'products');
+        const q = query(productsCol, orderBy('name', 'asc'));
+
+        const snap = await getDocs(q);
+        const items: ProductDoc[] = snap.docs.map((doc) => {
+          const data = doc.data() as any;
+
+          // Try multiple possible field names, fall back in order
+          const resolvedMockupUrl: string | null =
+            data.mockupImageUrl ??
+            data.mockup_image_url ??
+            data.imageUrl ??
+            null;
+
+          return {
+            id: doc.id,
+            name: data.name ?? 'Unnamed product',
+            description: data.description ?? '',
+            price: typeof data.price === 'number' ? data.price : undefined,
+            active: typeof data.active === 'boolean' ? data.active : true,
+            mockupImageUrl: resolvedMockupUrl,
+            defaultAssetId: data.defaultAssetId ?? null,
+          };
+        });
+
+        setProducts(items);
+      } catch (err: any) {
+        console.error('[ADMIN] Error loading products:', err);
+        setError(err?.message || 'Failed to load products.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 960,
+          margin: '0 auto',
+        }}
+      >
+        {/* Header */}
+        <header
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0 }}>Products</h1>
+            <p
+              style={{
+                margin: 0,
+                marginTop: 4,
+                fontSize: '0.9rem',
+                color: '#9ca3af',
+              }}
+            >
+              Manage products that appear in Shop and Studio.
+            </p>
+          </div>
+
+          <Link
+            href="/admin/products/new"
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid #10b981',
+              background: '#022c22',
+              color: '#a7f3d0',
+              fontSize: '0.85rem',
+              textDecoration: 'none',
+            }}
+          >
+            + New product
+          </Link>
+        </header>
+
+        {/* Loading / error states */}
+        {loading && (
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: '#9ca3af',
+            }}
+          >
+            Loading products…
+          </p>
+        )}
+
+        {error && (
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: '#fca5a5',
+              marginBottom: 12,
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        {/* Product list */}
+        {!loading && !error && products.length === 0 && (
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: '#9ca3af',
+            }}
+          >
+            No products found. Click <strong>+ New product</strong> to create
+            one.
+          </p>
+        )}
+
+        {!loading && !error && products.length > 0 && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr)',
+              gap: 12,
+            }}
+          >
+            {products.map((p) => {
+              const priceDisplay =
+                typeof p.price === 'number'
+                  ? `$${p.price.toFixed(2)}`
+                  : 'Not set';
+
+              return (
+                <article
+                  key={p.id}
+                  style={{
+                    padding: 12,
+                    borderRadius: 10,
+                    border: '1px solid #1f2937',
+                    background: '#020617',
+                    display: 'grid',
+                    gridTemplateColumns: '80px minmax(0, 1fr) auto auto',
+                    gap: 12,
+                    alignItems: 'center',
+                  }}
+                >
+                  {/* Thumbnail */}
+                  <div>
+                    {p.mockupImageUrl ? (
+                      <img
+                        src={p.mockupImageUrl}
+                        alt={p.name}
+                        onError={(e) =>
+                          console.error(
+                            '[ADMIN] Product thumbnail failed:',
+                            e.currentTarget.src,
+                          )
+                        }
+                        style={{
+                          width: 64,
+                          height: 64,
+                          objectFit: 'cover',
+                          borderRadius: 8,
+                          border: '1px solid #374151',
+                          background: '#020617',
+                          display: 'block',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 64,
+                          height: 64,
+                          borderRadius: 8,
+                          border: '1px dashed #374151',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.7rem',
+                          color: '#6b7280',
+                        }}
+                      >
+                        No image
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Main info */}
+                  <div>
+                    <h2
+                      style={{
+                        margin: 0,
+                        marginBottom: 4,
+                        fontSize: '1rem',
+                      }}
+                    >
+                      {p.name}
+                    </h2>
+                    <p
+                      style={{
+                        margin: 0,
+                        marginBottom: 4,
+                        fontSize: '0.85rem',
+                        color: '#9ca3af',
+                      }}
+                    >
+                      Price: <strong>{priceDisplay}</strong>{' '}
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          padding: '2px 6px',
+                          borderRadius: 6,
+                          fontSize: '0.75rem',
+                          border: '1px solid #374151',
+                          background: p.active ? '#022c22' : '#111827',
+                          color: p.active ? '#6ee7b7' : '#9ca3af',
+                        }}
+                      >
+                        {p.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </p>
+                    <p
+                      style={{
+                        margin: 0,
+                        marginTop: 4,
+                        fontSize: '0.75rem',
+                        color: '#6b7280',
+                      }}
+                    >
+                      id: <code>{p.id}</code>
+                    </p>
+
+                    {/* Debug: show what URL we're using */}
+                    <p
+                      style={{
+                        margin: 0,
+                        marginTop: 4,
+                        fontSize: '0.7rem',
+                        color: '#6b7280',
+                        wordBreak: 'break-all',
+                      }}
+                    >
+                      mockupImageUrl:{' '}
+                      <code>{p.mockupImageUrl ?? '(none)'}</code>
+                    </p>
+                  </div>
+
+                  {/* View in shop */}
+                  <Link
+                    href={`/shop/${p.id}`}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #4b5563',
+                      background: '#111827',
+                      color: '#e5e7eb',
+                      fontSize: '0.8rem',
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    View in shop
+                  </Link>
+
+                  {/* Edit */}
+                  <Link
+                    href={`/admin/products/${p.id}`}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #3b82f6',
+                      background: '#0b1120',
+                      color: '#bfdbfe',
+                      fontSize: '0.8rem',
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Edit
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+FILE: src/app/admin/products/[productId]/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import React, { useEffect, useState, FormEvent } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import AssetPicker, { AssetDoc } from '@/components/admin/AssetPicker';
+
+type ProductState = {
+  name: string;
+  description: string;
+  priceInput: string;
+  mockupImageUrl: string;
+  defaultAssetId: string;
+  active: boolean;
+};
+
+export default function EditProductPage() {
+  const params = useParams();
+  const router = useRouter();
+  const productId = params?.productId as string;
+
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [product, setProduct] = useState<ProductState | null>(null);
+
+  // Asset picker state
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<AssetDoc | null>(null);
+
+  // Load product once
+  useEffect(() => {
+    const load = async () => {
+      if (!productId) return;
+      try {
+        setError(null);
+        setLoading(true);
+
+        const ref = doc(db, 'products', productId);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          setError('Product not found.');
+          setProduct(null);
+          return;
+        }
+
+        const data = snap.data() as any;
+
+        const state: ProductState = {
+          name: data.name ?? '',
+          description: data.description ?? '',
+          priceInput: typeof data.price === 'number' ? String(data.price) : '',
+          mockupImageUrl: data.mockupImageUrl ?? '',
+          defaultAssetId: data.defaultAssetId ?? '',
+          active: typeof data.active === 'boolean' ? data.active : true,
+        };
+
+        setProduct(state);
+
+        // If there's a defaultAssetId, keep it as text; we'll let
+        // the user re-select if they want to load its full info.
+        setSelectedAsset(null);
+
+        setLoaded(true);
+      } catch (err: any) {
+        console.error('[ADMIN] Error loading product:', err);
+        setError(err?.message ?? 'Failed to load product.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [productId]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!product) return;
+
+    setError(null);
+
+    const priceNumber = parseFloat(product.priceInput);
+    if (!product.name.trim()) {
+      setError('Name is required.');
+      return;
+    }
+    if (Number.isNaN(priceNumber) || priceNumber < 0) {
+      setError('Price must be a non-negative number.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const ref = doc(db, 'products', productId);
+      await updateDoc(ref, {
+        name: product.name.trim(),
+        description: product.description.trim(),
+        price: priceNumber,
+        mockupImageUrl: product.mockupImageUrl.trim() || null,
+        defaultAssetId: product.defaultAssetId.trim() || null,
+        active: product.active,
+        updatedAt: serverTimestamp(),
+      });
+
+      console.log('[ADMIN] Updated product:', productId);
+      // optional: small toast / navigate
+      // router.push("/admin/products");
+    } catch (err: any) {
+      console.error('[ADMIN] Error updating product:', err);
+      setError(err?.message ?? 'Failed to update product.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFieldChange = (
+    field: keyof ProductState,
+    value: string | boolean,
+  ) => {
+    setProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            [field]: value,
+          }
+        : prev,
+    );
+  };
+
+  const handleAssetSelected = (asset: AssetDoc) => {
+    setSelectedAsset(asset);
+    setProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            defaultAssetId: asset.id,
+            // If no mockup yet, use asset image as a sensible default
+            mockupImageUrl: prev.mockupImageUrl || asset.imageUrl || '',
+          }
+        : prev,
+    );
+    setAssetPickerOpen(false);
+  };
+
+  if (loading) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <h1>Loading product…</h1>
+      </main>
+    );
+  }
+
+  if (!loaded || !product) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <h1>Product not found</h1>
+        {error && (
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: '#fca5a5',
+            }}
+          >
+            {error}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => router.push('/admin/products')}
+          style={{
+            marginTop: 8,
+            padding: '6px 12px',
+            borderRadius: 6,
+            border: '1px solid #4b5563',
+            background: '#111827',
+            color: '#e5e7eb',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+          }}
+        >
+          Back to products
+        </button>
+      </main>
+    );
+  }
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 720,
+          margin: '0 auto',
+        }}
+      >
+        <header
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 24,
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0 }}>Edit Product</h1>
+            <p
+              style={{
+                margin: 0,
+                marginTop: 4,
+                fontSize: '0.9rem',
+                color: '#9ca3af',
+              }}
+            >
+              ID: <code>{productId}</code>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push('/admin/products')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid #4b5563',
+              background: '#111827',
+              color: '#e5e7eb',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+            }}
+          >
+            Back to products
+          </button>
+        </header>
+
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            padding: 16,
+            borderRadius: 12,
+            border: '1px solid #1f2937',
+            background: '#020617',
+            display: 'grid',
+            gap: 16,
+          }}
+        >
+          {/* Name */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Name <span style={{ color: '#f97316' }}>*</span>
+            </label>
+            <input
+              type="text"
+              value={product.name}
+              onChange={(e) => handleFieldChange('name', e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Description
+            </label>
+            <textarea
+              value={product.description}
+              onChange={(e) => handleFieldChange('description', e.target.value)}
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+                resize: 'vertical',
+              }}
+            />
+          </div>
+
+          {/* Price */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Price (USD){' '}
+              <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+                e.g. 19.99
+              </span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={product.priceInput}
+              onChange={(e) => handleFieldChange('priceInput', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* Mockup image URL + preview */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Mockup image URL (optional)
+            </label>
+            <input
+              type="url"
+              value={product.mockupImageUrl}
+              onChange={(e) =>
+                handleFieldChange('mockupImageUrl', e.target.value)
+              }
+              placeholder="https://firebasestorage.googleapis.com/..."
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+            <p
+              style={{
+                margin: 0,
+                marginTop: 4,
+                fontSize: '0.8rem',
+                color: '#9ca3af',
+              }}
+            >
+              Used as the main product preview image in Shop/Admin. You can
+              paste a Storage URL or derive it from an asset or mockup.
+            </p>
+
+            {product.mockupImageUrl && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 8,
+                  borderRadius: 8,
+                  border: '1px solid #374151',
+                  background: '#020617',
+                  display: 'inline-block',
+                }}
+              >
+                <img
+                  src={product.mockupImageUrl}
+                  alt="Mockup preview"
+                  onError={(e) =>
+                    console.error(
+                      '[ADMIN] Mockup preview failed to load:',
+                      e.currentTarget.src,
+                    )
+                  }
+                  style={{
+                    maxWidth: 260,
+                    maxHeight: 260,
+                    borderRadius: 6,
+                    display: 'block',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Default asset ID + chooser */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Default asset (optional)
+            </label>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginBottom: 4,
+              }}
+            >
+              <input
+                type="text"
+                value={product.defaultAssetId}
+                onChange={(e) =>
+                  handleFieldChange('defaultAssetId', e.target.value)
+                }
+                placeholder="Asset ID (can also choose below)"
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #4b5563',
+                  background: '#020617',
+                  color: '#e5e7eb',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setAssetPickerOpen(true)}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #3b82f6',
+                  background: '#0b1120',
+                  color: '#bfdbfe',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Choose from assets…
+              </button>
+            </div>
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.8rem',
+                color: '#9ca3af',
+              }}
+            >
+              Links this product to an asset in your <code>assets</code>{' '}
+              collection so Studio can use it as the default design.
+            </p>
+
+            {selectedAsset && (
+              <div
+                style={{
+                  marginTop: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: 8,
+                  borderRadius: 8,
+                  border: '1px solid #1f2937',
+                  background: '#020617',
+                }}
+              >
+                <div>
+                  {selectedAsset.imageUrl ? (
+                    <img
+                      src={selectedAsset.imageUrl}
+                      alt={selectedAsset.title}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        objectFit: 'cover',
+                        borderRadius: 6,
+                        border: '1px solid #374151',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 6,
+                        border: '1px dashed #374151',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.7rem',
+                        color: '#6b7280',
+                      }}
+                    >
+                      No image
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      marginBottom: 2,
+                    }}
+                  >
+                    {selectedAsset.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '0.7rem',
+                      color: '#6b7280',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {selectedAsset.id}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Active toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <input
+              id="active"
+              type="checkbox"
+              checked={product.active}
+              onChange={(e) => handleFieldChange('active', e.target.checked)}
+            />
+            <label htmlFor="active" style={{ fontSize: '0.9rem' }}>
+              Active (show in shop)
+            </label>
+          </div>
+
+          {/* Error + save */}
+          {error && (
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.85rem',
+                color: '#fca5a5',
+              }}
+            >
+              {error}
+            </p>
+          )}
+
+          <div
+            style={{
+              marginTop: 8,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => router.push('/admin/products')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#111827',
+                color: '#e5e7eb',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid #10b981',
+                background: saving ? '#064e3b' : '#022c22',
+                color: '#a7f3d0',
+                cursor: saving ? 'default' : 'pointer',
+                fontSize: '0.9rem',
+                opacity: saving ? 0.8 : 1,
+              }}
+            >
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {assetPickerOpen && (
+        <AssetPicker
+          onSelect={handleAssetSelected}
+          onClose={() => setAssetPickerOpen(false)}
+        />
+      )}
+    </main>
+  );
+}
+
+FILE: src/app/gallery/page.tsx
+'use client';
+
+import Image from 'next/image';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore';
+
+type Asset = {
+  id: string;
+  title?: string;
+  imageUrl?: string;
+  thumbUrl?: string;
+  niche?: string;
+  source?: string;
+  createdAt?: Date;
+  published?: boolean; // optional future use
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function coerceDate(v: any): Date | undefined {
+  if (!v) return undefined;
+  if (typeof v?.toDate === 'function') return v.toDate(); // Firestore Timestamp
+  if (v instanceof Date) return v;
+  if (typeof v === 'number' || typeof v === 'string') {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? undefined : d;
+  }
+  return undefined;
+}
+
+export default function GalleryPage() {
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const q = query(
+          collection(db, 'assets'),
+          // In early stages, keep the gallery lightweight.
+          orderBy('createdAt', 'desc'),
+          limit(60)
+        );
+
+        const snap = await getDocs(q);
+        if (cancelled) return;
+
+        const items = snap.docs.map((d) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const data: any = d.data() || {};
+          const createdAt = coerceDate(data.createdAt ?? data.created_at); // back-compat
+
+          return {
+            id: d.id,
+            title: data.title ?? '',
+            niche: data.niche ?? '',
+            imageUrl: data.imageUrl ?? '',
+            thumbUrl: data.thumbUrl ?? data.imageUrl ?? '',
+            source: data.source ?? '',
+            published: data.published,
+            createdAt,
+          } satisfies Asset;
+        });
+
+        setAssets(items);
+      } catch (e) {
+        console.error('Failed to load gallery assets:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const niches = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of assets) if (a.niche) set.add(a.niche);
+    return Array.from(set).sort();
+  }, [assets]);
+
+  return (
+    <main style={{ padding: 24 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+        Gallery
+      </h1>
+
+      {loading && <p style={{ color: '#6b7280' }}>Loading…</p>}
+
+      {!loading && assets.length === 0 && (
+        <p style={{ color: '#6b7280' }}>
+          No assets yet. (If you later add a <code>published</code> filter, make
+          sure at least one asset has <code>published: true</code>.)
+        </p>
+      )}
+
+      {!loading && assets.length > 0 && (
+        <>
+          {niches.length > 0 && (
+            <div
+              style={{
+                marginBottom: 16,
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              {niches.map((n) => (
+                <span
+                  key={n}
+                  style={{
+                    fontSize: 12,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    background: '#f3f4f6',
+                    color: '#111827',
+                  }}
+                >
+                  {n}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: 'grid',
+              gap: 16,
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            }}
+          >
+            {assets.map((asset) => {
+              const src = asset.thumbUrl || asset.imageUrl || '/mock.png';
+              return (
+                <Link
+                  key={asset.id}
+                  href={`/asset/${asset.id}`}
+                  style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    background: '#fff',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      aspectRatio: '1 / 1',
+                      background: '#f3f4f6',
+                    }}
+                  >
+                    <Image
+                      src={src}
+                      alt={asset.title || 'Generated design'}
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      style={{ objectFit: 'cover' }}
+                    />
+                  </div>
+
+                  <div style={{ padding: 12 }}>
+                    <p style={{ margin: 0, fontWeight: 600 }}>
+                      {asset.title || 'Untitled'}
+                    </p>
+
+                    {asset.niche && (
+                      <p
+                        style={{
+                          margin: '4px 0 0 0',
+                          fontSize: '0.85rem',
+                          color: '#6b7280',
+                        }}
+                      >
+                        {asset.niche}
+                      </p>
+                    )}
+
+                    {asset.createdAt && (
+                      <p
+                        style={{
+                          margin: '6px 0 0 0',
+                          fontSize: '0.75rem',
+                          color: '#9ca3af',
+                        }}
+                      >
+                        {asset.createdAt.toLocaleString()}
+                      </p>
+                    )}
+
+                    {asset.source && (
+                      <p
+                        style={{
+                          margin: '4px 0 0 0',
+                          fontSize: '0.75rem',
+                          color: '#6b7280',
+                        }}
+                      >
+                        Source: {asset.source}
+                      </p>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </main>
+  );
+}
+
+FILE: src/app/studio/generate/page.tsx
+'use client';
+
+import React, { useState } from 'react';
+import { PROMPT_TEMPLATES } from '@/lib/promptTemplates';
+import Image from 'next/image';
+
+type GeneratedAsset = {
+  id: string;
+  title: string;
+  niche: string;
+  imageUrl: string;
+};
+
+export default function GenerateAssetPage() {
+  const [prompt, setPrompt] = useState('');
+  const [title, setTitle] = useState('');
+  const [niche, setNiche] = useState('');
+  const [count, setCount] = useState<number>(1);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [generatedAssets, setGeneratedAssets] = useState<GeneratedAsset[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) {
+      setError('Please enter a prompt.');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    setGeneratedAssets([]);
+
+    try {
+      const res = await fetch('/api/generate-asset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          title: title || prompt.slice(0, 60),
+          niche: niche || 'general',
+          count,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Generation failed');
+      }
+
+      const data = await res.json();
+      const assets: GeneratedAsset[] = data.assets ?? [];
+      setGeneratedAssets(assets);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Unexpected error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
+      <h1>AI Asset Generator (Batch)</h1>
+      <p style={{ color: '#9ca3af' }}>
+        Use a template or custom prompt to generate multiple designs at once.
+        All images are uploaded to Storage and registered in your{' '}
+        <code>assets</code> collection.
+      </p>
+
+      <div
+        style={{
+          marginTop: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        {/* Title */}
+        <label>
+          Title (optional):
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+          />
+        </label>
+
+        {/* Niche */}
+        <label>
+          Niche (optional, e.g. 80s-retro&quot;, kawaii-animals&quot;):
+          <input
+            type="text"
+            value={niche}
+            onChange={(e) => setNiche(e.target.value)}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+          />
+        </label>
+
+        {/* Template selector */}
+        <label>
+          Prompt Template:
+          <select
+            value={selectedTemplate}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelectedTemplate(id);
+              const tmpl = PROMPT_TEMPLATES.find((t) => t.id === id);
+              if (tmpl) {
+                setPrompt(
+                  tmpl.build({
+                    subject: 'a mountain',
+                    animal: 'a fox',
+                    character: 'a robot',
+                    theme: 'a forest at sunset',
+                  })
+                );
+              }
+            }}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+          >
+            <option value="">-- Select Template --</option>
+            {PROMPT_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Batch size */}
+        <label>
+          Number of images:
+          <input
+            type="number"
+            min={1}
+            max={8}
+            value={count}
+            onChange={(e) =>
+              setCount(Math.min(8, Math.max(1, Number(e.target.value) || 1)))
+            }
+            style={{ width: 100, padding: 8, marginTop: 4 }}
+          />
+          <span style={{ marginLeft: 8, fontSize: '0.9rem', color: '#9ca3af' }}>
+            (1–8, keep small while testing)
+          </span>
+        </label>
+
+        {/* Prompt textarea */}
+        <label>
+          Prompt:
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={5}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+            placeholder="Describe the design(s) you want to generate..."
+          />
+        </label>
+
+        {/* Generate button */}
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          style={{
+            marginTop: 8,
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: '1px solid #1f2937',
+            background: loading ? '#374151' : '#2563eb',
+            color: 'white',
+            cursor: loading ? 'default' : 'pointer',
+          }}
+        >
+          {loading
+            ? `Generating ${count} image(s)...`
+            : `Generate ${count} image(s)`}
+        </button>
+
+        {error && <p style={{ color: '#f87171', marginTop: 8 }}>{error}</p>}
+
+        {/* Results grid */}
+        {generatedAssets.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <p style={{ marginBottom: 8 }}>
+              Generated {generatedAssets.length} asset
+              {generatedAssets.length > 1 ? 's' : ''} (also saved to Gallery):
+            </p>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                gap: 12,
+              }}
+            >
+              {generatedAssets.map((asset) => (
+                <div
+                  key={asset.id}
+                  style={{
+                    borderRadius: 12,
+                    border: '1px solid #1f2937',
+                    background: '#020617',
+                    padding: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      aspectRatio: '1 / 1',
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      marginBottom: 6,
+                      background: '#111827',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Image
+                      src={asset.imageUrl}
+                      alt={asset.title}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  </div>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    {asset.title}
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: '0.75rem',
+                      color: '#9ca3af',
+                    }}
+                  >
+                    {asset.niche}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+FILE: src/app/studio/page.tsx
+'use client';
+
+import React, { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Stage, Layer, Rect, Image as KonvaImage } from 'react-konva';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+
+const CANVAS_WIDTH = 600;
+const CANVAS_HEIGHT = 700;
+
+const PRINT_RECT = {
+  x: 150,
+  y: 150,
+  width: 300,
+  height: 400,
+};
+
+type AssetDoc = {
+  title?: string;
+  imageUrl?: string;
+};
+
+type ProductDoc = {
+  name?: string;
+  description?: string;
+  price?: number | string; // <-- allow number OR string from Firestore
+  mockupImageUrl?: string | null;
+};
+
+type Position = { x: number; y: number };
+
+const CART_KEY = 'aiMerchCart';
+
+function StudioPageInner() {
+  const searchParams = useSearchParams();
+  const assetId = searchParams.get('assetId');
+  const productId = searchParams.get('productId');
+
+  const [asset, setAsset] = useState<AssetDoc | null>(null);
+  const [product, setProduct] = useState<ProductDoc | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [designImage, setDesignImage] = useState<HTMLImageElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState<Position>({
+    x: PRINT_RECT.x + PRINT_RECT.width / 2,
+    y: PRINT_RECT.y + PRINT_RECT.height / 2,
+  });
+
+  const [addedMessage, setAddedMessage] = useState('');
+
+  // Load asset + product
+  useEffect(() => {
+    const load = async () => {
+      if (!assetId || !productId) {
+        setError('Missing assetId or productId in URL.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const assetSnap = await getDoc(doc(db, 'assets', assetId));
+        if (!assetSnap.exists()) {
+          setError('Asset not found.');
+          setLoading(false);
+          return;
+        }
+
+        const productSnap = await getDoc(doc(db, 'products', productId));
+        if (!productSnap.exists()) {
+          setError('Product not found.');
+          setLoading(false);
+          return;
+        }
+
+        const aData = assetSnap.data() as any;
+        const pData = productSnap.data() as any;
+
+        console.log('[STUDIO] asset data:', aData);
+        console.log('[STUDIO] product data:', pData);
+
+        setAsset({
+          title: aData.title,
+          imageUrl: aData.imageUrl,
+        });
+
+        setProduct({
+          name: pData.name,
+          description: pData.description,
+          price: pData.price,
+          mockupImageUrl: pData.mockupImageUrl ?? null,
+        });
+      } catch (err) {
+        console.error('[STUDIO] load error:', err);
+        setError('Failed to load asset or product.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [assetId, productId]);
+
+  // Load design image
+  useEffect(() => {
+    if (!asset || !asset.imageUrl) return;
+
+    console.log('[STUDIO] Loading design image from:', asset.imageUrl);
+
+    const img = new window.Image();
+    img.src = asset.imageUrl;
+
+    img.onload = () => {
+      console.log('[STUDIO] Design image loaded:', img.width, img.height);
+      setDesignImage(img);
+    };
+
+    img.onerror = () => {
+      console.error(
+        '[STUDIO] Error loading design image from URL:',
+        asset.imageUrl
+      );
+    };
+  }, [asset]);
+
+  const handleReset = () => {
+    setScale(1);
+    setPos({
+      x: PRINT_RECT.x + PRINT_RECT.width / 2,
+      y: PRINT_RECT.y + PRINT_RECT.height / 2,
+    });
+  };
+
+  const handleAddToCart = () => {
+    if (!product || !productId) {
+      console.error('[STUDIO] No product or productId for Add to cart');
+      return;
+    }
+
+    // Normalize price
+    let priceValue = 0;
+    if (product.price !== undefined && product.price !== null) {
+      const n = Number(product.price);
+      if (!Number.isNaN(n)) {
+        priceValue = n;
+      }
+    }
+
+    const newItem = {
+      productId,
+      productName: product.name ?? 'Product',
+      price: priceValue,
+      assetId: assetId ?? null,
+      assetTitle: asset?.title ?? '',
+      scale,
+      position: pos,
+      // prefer product.mockupImageUrl, fallback to asset.imageUrl
+      mockupImageUrl: asset?.imageUrl || product.mockupImageUrl || null,
+    };
+
+    console.log('[STUDIO] New cart item:', newItem);
+
+    try {
+      if (typeof window === 'undefined') {
+        console.warn('[STUDIO] window undefined; not writing cart');
+        return;
+      }
+
+      const raw = window.localStorage.getItem(CART_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+
+      console.log('[STUDIO] Existing cart raw:', raw);
+      console.log('[STUDIO] Existing cart parsed:', parsed);
+
+      const next = Array.isArray(parsed) ? [...parsed, newItem] : [newItem];
+
+      window.localStorage.setItem(CART_KEY, JSON.stringify(next));
+
+      console.log('[STUDIO] Updated cart:', next);
+
+      setAddedMessage('Added to cart!');
+      setTimeout(() => setAddedMessage(''), 2000);
+    } catch (err) {
+      console.error('[STUDIO] Failed to add to cart:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <h1>Studio</h1>
+        <p>Loading…</p>
+      </main>
+    );
+  }
+
+  if (error || !asset || !product) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <h1>Studio</h1>
+        <p style={{ color: '#f87171' }}>{error ?? 'Missing data.'}</p>
+      </main>
+    );
+  }
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+        gap: 24,
+        alignItems: 'flex-start',
+      }}
+    >
+      {/* LEFT: Canvas + debug preview */}
+      <div>
+        <h1>Studio</h1>
+        <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
+          Asset: <strong>{asset.title ?? assetId}</strong>
+          <br />
+          Product: <strong>{product.name ?? productId}</strong>
+        </p>
+
+        {/* Debug raw image */}
+        {asset.imageUrl && (
+          <div style={{ marginBottom: 16 }}>
+            <p
+              style={{
+                fontSize: '0.8rem',
+                color: '#9ca3af',
+                marginBottom: 4,
+              }}
+            >
+              Debug asset image preview:
+            </p>
+            <img
+              src={asset.imageUrl}
+              alt="debug-asset"
+              style={{
+                maxWidth: 200,
+                borderRadius: 8,
+                border: '1px solid #374151',
+              }}
+            />
+          </div>
+        )}
+
+        <Stage
+          width={CANVAS_WIDTH}
+          height={CANVAS_HEIGHT}
+          style={{
+            border: '1px solid #374151',
+            background: '#020617',
+          }}
+        >
+          <Layer>
+            <Rect
+              x={0}
+              y={0}
+              width={CANVAS_WIDTH}
+              height={CANVAS_HEIGHT}
+              fill="#020617"
+            />
+
+            <Rect
+              x={PRINT_RECT.x}
+              y={PRINT_RECT.y}
+              width={PRINT_RECT.width}
+              height={PRINT_RECT.height}
+              stroke="#10b981"
+              strokeWidth={2}
+              dash={[4, 4]}
+            />
+
+            {designImage && (
+              <KonvaImage
+                image={designImage}
+                x={pos.x}
+                y={pos.y}
+                offsetX={designImage.width / 2}
+                offsetY={designImage.height / 2}
+                scaleX={scale}
+                scaleY={scale}
+                draggable
+                onDragEnd={(e) => {
+                  setPos({ x: e.target.x(), y: e.target.y() });
+                }}
+              />
+            )}
+          </Layer>
+        </Stage>
+      </div>
+
+      {/* RIGHT: Controls */}
+      <div
+        style={{
+          padding: 16,
+          borderRadius: 12,
+          border: '1px solid #1f2937',
+          background: '#020617',
+        }}
+      >
+        <h2>Controls</h2>
+
+        <div style={{ marginBottom: 16 }}>
+          <label>
+            Scale: <strong>{scale.toFixed(2)}</strong>
+          </label>
+          <input
+            type="range"
+            min={0.2}
+            max={1.5}
+            step={0.05}
+            value={scale}
+            onChange={(e) => setScale(parseFloat(e.target.value))}
+            style={{ width: '100%' }}
+          />
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          <button
+            onClick={() => setPos((p) => ({ ...p, y: p.y - 10 }))}
+            style={{ padding: '4px 8px' }}
+          >
+            Up
+          </button>
+          <button
+            onClick={() => setPos((p) => ({ ...p, y: p.y + 10 }))}
+            style={{ padding: '4px 8px' }}
+          >
+            Down
+          </button>
+          <button
+            onClick={() => setPos((p) => ({ ...p, x: p.x - 10 }))}
+            style={{ padding: '4px 8px' }}
+          >
+            Left
+          </button>
+          <button
+            onClick={() => setPos((p) => ({ ...p, x: p.x + 10 }))}
+            style={{ padding: '4px 8px' }}
+          >
+            Right
+          </button>
+        </div>
+
+        <button onClick={handleReset} style={{ marginBottom: 12 }}>
+          Reset position &amp; scale
+        </button>
+
+        <div style={{ marginTop: 16 }}>
+          <button onClick={handleAddToCart}>Add to cart</button>
+          {addedMessage && (
+            <p style={{ color: '#22c55e', marginTop: 8 }}>{addedMessage}</p>
+          )}
+        </div>
+
+        <p
+          style={{
+            fontSize: '0.85rem',
+            color: '#9ca3af',
+            marginTop: 16,
+          }}
+        >
+          For now, cart items are stored in your browser&apos;s localStorage
+          under <code>aiMerchCart</code>.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+export default function StudioPage() {
+  return (
+    <Suspense
+      fallback={
+        <main
+          style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#9ca3af',
+          }}
+        >
+          Loading studio...
+        </main>
+      }
+    >
+      <StudioPageInner />
+    </Suspense>
+  );
+}
+
+FILE: src/app/signup/page.tsx
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+
+export default function SignupPage() {
+  const router = useRouter();
+  const { signUp, actionLoading, error } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setValidationError(null);
+
+    if (password !== confirmPassword) {
+      setValidationError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      setValidationError("Password must be at least 6 characters");
+      return;
+    }
+
+    try {
+      await signUp(email, password);
+      router.push('/'); // Redirect, eventually maybe to an onboarding step
+    } catch (err) {
+      // Error handled by hook
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50/50">
+      <Header />
+      <main className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold font-heading text-center">Create Account</CardTitle>
+            <CardDescription className="text-center">
+              Join AI Merch to start designing
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              {(error || validationError) && (
+                <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-100 rounded-md">
+                  {error || validationError}
+                </div>
+              )}
+              <Input
+                label="Email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <Input
+                label="Password"
+                type="password"
+                placeholder="Create a password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <Input
+                label="Confirm Password"
+                type="password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </CardContent>
+            <CardFooter className="flex flex-col space-y-4">
+              <Button 
+                type="submit" 
+                className="w-full" 
+                variant="accent"
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Creating Account...' : 'Sign Up'}
+              </Button>
+              <p className="text-sm text-center text-gray-500">
+                Already have an account?{' '}
+                <Link href="/login" className="font-semibold text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+FILE: src/app/orders/page.tsx
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { db } from "@/lib/firebase";
+import { useAnonUser } from "@/lib/useAnonUser";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+} from "firebase/firestore";
+
+type CartItem = {
+  id: string;
+  assetId: string;
+  productId: string;
+  assetTitle: string;
+  productName: string;
+  assetImageUrl: string;
+  mockupImageUrl?: string | null;
+  position: { x: number; y: number };
+  scale: number;
+  print_area: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  quantity: number;
+};
+
+type OrderDoc = {
+  id: string;
+  userId: string | null;
+  created_at: Date | null;
+  payment_status: string;
+  total_amount: number;
+  items: CartItem[];
+  payment_confirmed?: boolean; // derived from stripe_events
+};
+
+export default function OrdersPage() {
+  const { user, initializing } = useAnonUser();
+  const [orders, setOrders] = useState<OrderDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (initializing) return;
+
+    const load = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // 1) Load orders for this user
+        const ordersRef = collection(db, "orders");
+        const ordersQuery = query(
+          ordersRef,
+          where("userId", "==", user.uid),
+          orderBy("created_at", "desc")
+        );
+        const ordersSnap = await getDocs(ordersQuery);
+
+        const rawOrders: OrderDoc[] = ordersSnap.docs.map((d) => {
+          const data = d.data() as any;
+          const created =
+            data.created_at?.toDate?.() ?? data.created_at ?? null;
+
+          return {
+            id: d.id,
+            userId: data.userId ?? null,
+            created_at: created,
+            payment_status: data.payment_status ?? "unknown",
+            total_amount: data.total_amount ?? 0,
+            items: (data.items ?? []) as CartItem[],
+          };
+        });
+
+        // 2) Load Stripe events for this user
+        const stripeRef = collection(db, "stripe_events");
+        const stripeQuery = query(
+          stripeRef,
+          where("userId", "==", user.uid)
+        );
+        const stripeSnap = await getDocs(stripeQuery);
+
+        const confirmedItemIds = new Set<string>();
+
+        stripeSnap.docs.forEach((doc) => {
+          const data = doc.data() as any;
+          const ids: string[] = data.cartItemIds ?? [];
+          ids.forEach((id) => confirmedItemIds.add(id));
+        });
+
+        // 3) Mark orders as payment_confirmed if any item id
+        //    exists in confirmedItemIds
+        const enhancedOrders: OrderDoc[] = rawOrders.map((order) => {
+          const confirmed = order.items.some((item) =>
+            confirmedItemIds.has(item.id)
+          );
+          return { ...order, payment_confirmed: confirmed };
+        });
+
+        setOrders(enhancedOrders);
+      } catch (err) {
+        console.error("Failed to load orders or stripe events:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [initializing, user]);
+
+  if (initializing || loading) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Orders</h1>
+        <p>Loading your orders…</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Orders</h1>
+        <p>Could not establish a user session.</p>
+      </main>
+    );
+  }
+
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Orders</h1>
+
+      {orders.length === 0 && <p>You don&apos;t have any orders yet.</p>}
+
+      {orders.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: 16,
+            marginTop: 16,
+          }}
+        >
+          {orders.map((order) => {
+            const dateLabel = order.created_at
+              ? order.created_at.toLocaleString()
+              : "Unknown date";
+
+            const statusLabel =
+              order.payment_status === "paid"
+                ? order.payment_confirmed
+                  ? "PAID (confirmed)"
+                  : "PAID"
+                : order.payment_status.toUpperCase();
+
+            const statusColor =
+              order.payment_status === "paid"
+                ? order.payment_confirmed
+                  ? "#22c55e"
+                  : "#facc15"
+                : "#f97316";
+
+            return (
+              <div
+                key={order.id}
+                style={{
+                  borderRadius: 12,
+                  border: "1px solid #1f2937",
+                  background: "#020617",
+                  padding: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}
+                >
+                  <div>
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontSize: "1rem",
+                      }}
+                    >
+                      Order #{order.id.slice(0, 8)}
+                    </h2>
+                    <p
+                      style={{
+                        margin: "4px 0",
+                        fontSize: "0.85rem",
+                        color: "#9ca3af",
+                      }}
+                    >
+                      {dateLabel}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontWeight: 600,
+                        color: statusColor,
+                      }}
+                    >
+                      {statusLabel}
+                    </p>
+                    <p
+                      style={{
+                        margin: "4px 0",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      ${order.total_amount.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    borderTop: "1px solid #1f2937",
+                    marginTop: 8,
+                    paddingTop: 8,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                  }}
+                >
+                  {order.items.map((item, idx) => (
+                    <div
+                      key={item.id ?? idx}
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 8,
+                          overflow: "hidden",
+                          background: "#111827",
+                          flexShrink: 0,
+                        }}
+                      >
+                        { (item as any).mockupImageUrl || item.assetImageUrl ? (
+                        <img
+                          src={(item as any).mockupImageUrl || item.assetImageUrl}
+                          alt={item.assetTitle}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",   
+                        }}
+                      />
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: "0.7rem",
+                              color: "#6b7280",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              height: "100%",
+                            }}
+                          >
+                            No preview
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          {item.productName}
+                        </p>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.8rem",
+                            color: "#9ca3af",
+                          }}
+                        >
+                          {item.assetTitle}
+                        </p>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.75rem",
+                            color: "#6b7280",
+                          }}
+                        >
+                          Qty: {item.quantity ?? 1}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </main>
+  );
+}
+
+FILE: src/app/products/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import Link from 'next/link';
+import { useProducts } from '@/hooks/useProducts';
+import {
+  Card,
+  //CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+
+export default function ProductsPage() {
+  const { products, loading, error } = useProducts();
+
+  const resolveImage = (p: any) => {
+    return (
+      p.mockupImageUrl ||
+      p.mockup_image_url ||
+      p.imageUrl ||
+      p.mockup_base_image ||
+      null
+    );
+  };
+
+  const resolvePrice = (p: any) => {
+    return p.price ?? p.base_price ?? 0;
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50/50">
+      <main className="flex-1 container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold font-heading mb-2">
+            Shop Collection
+          </h1>
+          <p className="text-gray-500">
+            Discover AI-generated premium apparel.
+          </p>
+        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <p className="text-gray-500 animate-pulse">Loading collection...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 bg-red-50 text-red-500 rounded-md">
+            Error loading products: {error}
+          </div>
+        )}
+
+        {!loading && !error && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {products.map((product) => {
+              const image = resolveImage(product);
+              const price = resolvePrice(product);
+
+              return (
+                <Link
+                  href={`/products/${product.id}`}
+                  key={product.id}
+                  className="group"
+                >
+                  <Card className="h-full overflow-hidden transition-all duration-300 hover:shadow-md hover:border-black/20">
+                    <div className="aspect-square relative bg-gray-100 overflow-hidden">
+                      {image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={image}
+                          alt={product.name}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                          No Image
+                        </div>
+                      )}
+                    </div>
+                    <CardHeader className="p-4">
+                      <div className="flex justify-between items-start gap-2">
+                        <CardTitle className="text-lg">
+                          {product.name}
+                        </CardTitle>
+                        <span className="font-medium font-mono text-sm">
+                          ${price.toFixed(2)}
+                        </span>
+                      </div>
+                      {product.description && (
+                        <CardDescription className="line-clamp-2 text-xs mt-1">
+                          {product.description}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardFooter className="p-4 pt-0">
+                      <Button
+                        variant="secondary"
+                        className="w-full group-hover:bg-primary group-hover:text-white transition-colors"
+                      >
+                        View Details
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {!loading && products.length === 0 && (
+          <div className="text-center py-20 text-gray-500">
+            No products found in the catalog.
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+FILE: src/app/products/[productId]/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import { useEffect, useState, use } from 'react';
+//import { useRouter } from 'next/navigation'; // Correct import for App Router navigation
+import Link from 'next/link';
+
+import { Product } from '@/lib/types';
+//import { Header } from '@/components/layout/Header';
+//import { Footer } from '@/components/layout/Footer';
+import { Button } from '@/components/ui/Button';
+import { useCart } from '@/context/CartContext';
+import Image from 'next/image';
+
+export default function ProductDetailPage({
+  params,
+}: {
+  params: Promise<{ productId: string }>;
+}) {
+  // 1. Resolve params using 'use' immediately
+  const resolvedParams = use(params);
+  const productId = resolvedParams.productId;
+
+  //const { getProduct } = useProducts();
+  const { addItem } = useCart();
+
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true; // Prevents state updates on unmounted component
+
+    async function load() {
+      try {
+        setLoading(true);
+        const p = await productId;
+        if (isMounted) {
+          setProduct(p);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Failed to load product:', error);
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [productId]);
+  // Removed getProduct from dependency to stop the flicker
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <main className="flex-1 flex items-center justify-center">
+          <p className="animate-pulse text-gray-500">
+            Loading product details...
+          </p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <main className="flex-1 flex flex-col items-center justify-center gap-4">
+          <h1 className="text-2xl font-bold">Product Not Found</h1>
+          <Link href="/products">
+            <Button variant="outline">Back to Shop</Button>
+          </Link>
+        </main>
+      </div>
+    );
+  }
+
+  const resolveImage = (p: any) =>
+    p.mockupImageUrl ||
+    p.mockup_image_url ||
+    p.imageUrl ||
+    p.mockup_base_image ||
+    null;
+  const resolvePrice = (p: any) => p.price ?? p.base_price ?? 0;
+
+  const image = resolveImage(product);
+  const price = resolvePrice(product);
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <main className="container mx-auto px-6 py-16">
+        <div className="grid md:grid-cols-2 gap-12 lg:gap-24">
+          {/* Image Column: Dark Glassmorphism */}
+          <div className="bg-white/5 rounded-4xl overflow-hidden aspect-square flex items-center justify-center border border-white/10 shadow-2xl group">
+            {image ? (
+              <Image
+                src={image}
+                alt={product.name}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+            ) : (
+              <span className="text-white/20 font-mono italic">
+                No Preview Available
+              </span>
+            )}
+          </div>
+
+          {/* Info Column */}
+          <div className="flex flex-col gap-8 justify-center">
+            <div>
+              <h1 className="text-5xl font-light tracking-tighter mb-4">
+                {/* ADD THE GUARD: product?.name && ... */}
+                {product?.name
+                  ? product.name.split(' ').map((word, i) =>
+                      i === 0 ? (
+                        word
+                      ) : (
+                        <span key={i} className="font-bold text-cyan-400">
+                          {' '}
+                          {word}
+                        </span>
+                      ),
+                    )
+                  : 'Loading Product...' // Fallback text while data is in transit
+                }
+              </h1>
+              <p className="text-3xl font-mono text-white/90">
+                ${price?.toFixed(2) || '0.00'}
+              </p>
+            </div>
+
+            <div className="max-w-md">
+              <p className="text-lg text-white/60 leading-relaxed font-light">
+                {product.description ||
+                  'Experimental AI-mapped garment designed for the digital frontier.'}
+              </p>
+            </div>
+
+            <div className="h-px bg-linear-to-r from-cyan-500/50 to-transparent my-2" />
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button
+                size="lg"
+                className="flex-1 bg-white text-black hover:bg-cyan-400 transition-all font-bold rounded-full py-6"
+                onClick={() => addItem(product)}
+              >
+                Add to Cart
+              </Button>
+
+              {product.defaultAssetId ? (
+                <Link
+                  href={`/studio?productId=${product.id}&assetId=${product.defaultAssetId}`}
+                  className="flex-1"
+                >
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full border-white/20 hover:border-cyan-400 rounded-full py-6"
+                  >
+                    Customize with AI
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  disabled
+                  className="flex-1 opacity-20 cursor-not-allowed rounded-full py-6"
+                >
+                  Customization Locked
+                </Button>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-500 text-center sm:text-left mt-2">
+              Fast shipping • High quality materials • AI Generated
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+FILE: src/app/test/page.tsx
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+
+const TestPage: React.FC = () => {
+  const [count, setCount] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const snapshot = await getDocs(collection(db, 'assets'));
+        setCount(snapshot.size);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (err: any) {
+        console.error(err);
+        setError(err?.message ?? 'Unknown error');
+      }
+    }
+
+    load();
+  }, []);
+
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Firestore Test</h1>
+
+      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+
+      {count !== null && !error && (
+        <p>
+          Documents in <code>assets</code>: {count}
+        </p>
+      )}
+
+      {count === null && !error && <p>Loading…</p>}
+    </main>
+  );
+};
+
+export default TestPage;
+
+FILE: src/app/login/page.tsx
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { signIn, actionLoading, error } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await signIn(email, password);
+      router.push('/'); // Redirect to home on success
+    } catch (err) {
+      // Error handled by hook
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50/50">
+      <Header />
+      <main className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold font-heading text-center">Welcome Back</CardTitle>
+            <CardDescription className="text-center">
+              Sign in to your account to continue shopping
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              {error && (
+                <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-100 rounded-md">
+                  {error}
+                </div>
+              )}
+              <Input
+                label="Email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <Input
+                label="Password"
+                type="password"
+                placeholder="Your secret password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </CardContent>
+            <CardFooter className="flex flex-col space-y-4">
+              <Button 
+                type="submit" 
+                className="w-full" 
+                variant="primary"
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Signing in...' : 'Sign In'}
+              </Button>
+              <p className="text-sm text-center text-gray-500">
+                Don't have an account?{' '}
+                <Link href="/signup" className="font-semibold text-primary hover:underline">
+                  Sign up
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+FILE: src/app/mockups/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import Image from 'next/image';
+
+type MockupDoc = {
+  id: string;
+  assetId: string;
+  productId: string;
+  imageUrl: string;
+  created_at?: Date | null;
+};
+
+export default function MockupsPage() {
+  const [mockups, setMockups] = useState<MockupDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [productFilter, setProductFilter] = useState('');
+  const [assetFilter, setAssetFilter] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const colRef = collection(db, 'mockups');
+        const q = query(colRef, orderBy('created_at', 'desc'));
+        const snap = await getDocs(q);
+
+        const list: MockupDoc[] = snap.docs.map((docSnap) => {
+          const data = docSnap.data() as any;
+          let created: Date | null = null;
+
+          if (data.created_at?.toDate) {
+            created = data.created_at.toDate();
+          } else if (data.created_at instanceof Date) {
+            created = data.created_at;
+          }
+
+          return {
+            id: docSnap.id,
+            assetId: data.assetId ?? '',
+            productId: data.productId ?? '',
+            imageUrl: data.imageUrl,
+            created_at: created,
+          };
+        });
+
+        setMockups(list);
+      } catch (err) {
+        console.error('Failed to load mockups:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  const productOptions = useMemo(() => {
+    const set = new Set<string>();
+    mockups.forEach((m) => m.productId && set.add(m.productId));
+    return Array.from(set).sort();
+  }, [mockups]);
+
+  const assetOptions = useMemo(() => {
+    const set = new Set<string>();
+    mockups.forEach((m) => m.assetId && set.add(m.assetId));
+    return Array.from(set).sort();
+  }, [mockups]);
+
+  const filteredMockups = useMemo(
+    () =>
+      mockups.filter((m) => {
+        const okProduct = !productFilter || m.productId === productFilter;
+        const okAsset = !assetFilter || m.assetId === assetFilter;
+        return okProduct && okAsset;
+      }),
+    [mockups, productFilter, assetFilter],
+  );
+
+  if (loading) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Mockups</h1>
+        <p>Loading mockups…</p>
+      </main>
+    );
+  }
+
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Mockups</h1>
+      <p style={{ color: '#9ca3af', marginBottom: 16 }}>
+        All saved mockup images generated from the Studio. Use the filters to
+        inspect by product or asset. Each card links back to the Studio with the
+        same asset/product.
+      </p>
+
+      {/* Filters */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ flex: '0 0 220px', minWidth: 220 }}>
+          <label style={{ fontSize: '0.9rem' }}>
+            Filter by productId
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              style={{
+                marginTop: 4,
+                width: '100%',
+                padding: 8,
+                borderRadius: 8,
+                border: '1px solid #1f2937',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            >
+              <option value="">All products</option>
+              {productOptions.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div style={{ flex: '0 0 220px', minWidth: 220 }}>
+          <label style={{ fontSize: '0.9rem' }}>
+            Filter by assetId
+            <select
+              value={assetFilter}
+              onChange={(e) => setAssetFilter(e.target.value)}
+              style={{
+                marginTop: 4,
+                width: '100%',
+                padding: 8,
+                borderRadius: 8,
+                border: '1px solid #1f2937',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            >
+              <option value="">All assets</option>
+              {assetOptions.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {filteredMockups.length === 0 && <p>No mockups match your filters.</p>}
+
+      {filteredMockups.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 16,
+          }}
+        >
+          {filteredMockups.map((m) => {
+            const dateLabel = m.created_at
+              ? m.created_at.toLocaleString()
+              : 'Unknown time';
+
+            const studioUrl = `/studio?assetId=${encodeURIComponent(
+              m.assetId,
+            )}&productId=${encodeURIComponent(m.productId)}`;
+
+            return (
+              <div
+                key={m.id}
+                style={{
+                  borderRadius: 12,
+                  border: '1px solid #1f2937',
+                  background: '#020617',
+                  padding: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1 / 1',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    marginBottom: 8,
+                    background: '#111827',
+                  }}
+                >
+                  <Image
+                    src={m.imageUrl}
+                    alt={`Mockup ${m.id}`}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </div>
+
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: '0.8rem',
+                    color: '#9ca3af',
+                    marginBottom: 4,
+                  }}
+                >
+                  mockupId: <code>{m.id}</code>
+                </p>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: '0.75rem',
+                    color: '#9ca3af',
+                  }}
+                >
+                  assetId: <code>{m.assetId}</code>
+                  <br />
+                  productId: <code>{m.productId}</code>
+                </p>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '0.75rem',
+                    color: '#6b7280',
+                  }}
+                >
+                  {dateLabel}
+                </p>
+
+                <a
+                  href={studioUrl}
+                  style={{
+                    display: 'inline-block',
+                    marginTop: 8,
+                    fontSize: '0.8rem',
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid #2563eb',
+                    color: '#bfdbfe',
+                    textDecoration: 'none',
+                  }}
+                >
+                  Open in Studio
+                </a>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </main>
+  );
+}
+
+FILE: src/app/design-system/page.tsx
+import { Button } from '@/components/ui/Button';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+
+export default function DesignSystemPage() {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <main className="flex-1 container mx-auto py-10 space-y-12">
+        <section>
+          <h1 className="text-4xl font-bold mb-6 font-heading">
+            Design System
+          </h1>
+          <p className="text-lg text-gray-600 mb-8 max-w-2xl">
+            This page verifies the implementation of design tokens, typography,
+            and base components.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold border-b pb-2">Colors</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-md bg-primary text-secondary">
+              <span className="font-bold">Primary</span>
+              <br />
+              #000000
+            </div>
+            <div className="p-4 rounded-md bg-secondary text-primary border">
+              <span className="font-bold">Secondary</span>
+              <br />
+              #FFFFFF
+            </div>
+            <div className="p-4 rounded-md bg-accent text-primary">
+              <span className="font-bold">Accent</span>
+              <br />
+              #00FF41
+            </div>
+            <div className="p-4 rounded-md bg-gray-100 text-gray-900">
+              <span className="font-bold">Muted</span>
+              <br />
+              Gray 100
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold border-b pb-2">Typography</h2>
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-4xl font-bold font-heading">
+                Heading 1 (Inter)
+              </h1>
+              <p className="text-sm text-gray-500">font-heading / 4xl / bold</p>
+            </div>
+            <div>
+              <h2 className="text-2xl font-semibold font-heading">
+                Heading 2 (Inter)
+              </h2>
+              <p className="text-sm text-gray-500">
+                font-heading / 2xl / semibold
+              </p>
+            </div>
+            <div>
+              <p className="text-base font-body">
+                Body text (Roboto). Lorem ipsum dolor sit amet, consectetur
+                adipiscing elit. Sed do eiusmod tempor incididunt ut labore et
+                dolore magna aliqua.
+              </p>
+              <p className="text-sm text-gray-500">font-body / base</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold border-b pb-2">Buttons</h2>
+          <div className="flex flex-wrap gap-4">
+            <Button variant="primary">Primary Button</Button>
+            <Button variant="secondary">Secondary Button</Button>
+            <Button variant="accent">Accent Button</Button>
+            <Button variant="outline">Outline Button</Button>
+            <Button variant="primary" size="sm">
+              Small
+            </Button>
+            <Button variant="primary" size="lg">
+              Large
+            </Button>
+            <Button disabled>Disabled</Button>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold border-b pb-2">Inputs</h2>
+          <div className="grid max-w-sm gap-4">
+            <Input placeholder="Default Input" />
+            <Input
+              label="Email Address"
+              placeholder="hello@example.com"
+              type="email"
+            />
+            <Input
+              label="With Error"
+              placeholder="Invalid input"
+              error="This field is required"
+            />
+            <Input disabled placeholder="Disabled input" />
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold border-b pb-2">Cards</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Product Card</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-500">
+                  This is a standard card component used for product listings.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full">Add to Cart</Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+FILE: src/app/asset/[assetId]/page.tsx
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import Image from 'next/image';
+
+type AssetDoc = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  thumbUrl: string;
+  niche?: string;
+};
+
+type ProductDoc = {
+  id: string;
+  name: string;
+  base_price?: number;
+  mockupImageUrl?: string;
+  category?: string;
+};
+
+export default function AssetDetailPage() {
+  const params = useParams<{ assetId: string }>();
+  const router = useRouter();
+  const assetId = params.assetId;
+
+  const [asset, setAsset] = useState<AssetDoc | null>(null);
+  const [products, setProducts] = useState<ProductDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const FALLBACK_MOCK = 'https://placehold.co/600x400?text=Mock+Image+Fallback';
+
+  useEffect(() => {
+    async function load() {
+      try {
+        // Load asset
+        const assetSnap = await getDoc(doc(db, 'assets', assetId));
+        if (!assetSnap.exists()) {
+          throw new Error('Asset not found');
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const aData = assetSnap.data() as any;
+        setAsset({
+          id: assetSnap.id,
+          title: aData.title ?? 'Untitled',
+          imageUrl: aData.imageUrl ?? '',
+          thumbUrl: aData.thumbUrl ?? '',
+          niche: aData.niche,
+        });
+
+        // Load products
+        const prodSnap = await getDocs(collection(db, 'products'));
+        const list: ProductDoc[] = prodSnap.docs.map((d) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const p = d.data() as any;
+          return {
+            id: d.id,
+            name: p.name ?? 'Unnamed product',
+            base_price: p.base_price,
+            mockupImageUrl: p.mockupImageUrl ?? p.mockup_base_image ?? null,
+            category: p.category,
+          };
+        });
+
+        setProducts(list);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (err: any) {
+        console.error(err);
+        setError(err?.message ?? 'Error loading asset/products');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, [assetId]);
+
+  const handleCustomize = (productId: string) => {
+    router.push(`/studio?assetId=${assetId}&productId=${productId}`);
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assetSrc = asset?.imageUrl || (asset as any)?.thumbUrl || 'mock.png';
+
+  if (loading) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Asset</h1>
+        <p>Loading asset & products…</p>
+      </main>
+    );
+  }
+
+  if (error || !asset) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Asset</h1>
+        <p style={{ color: 'red' }}>{error ?? 'Asset not found.'}</p>
+      </main>
+    );
+  }
+  return (
+    <main
+      style={{
+        padding: 24,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 2fr)',
+        gap: 24,
+        alignItems: 'flex-start',
+      }}
+    >
+      {/* Left: Asset preview */}
+      <div>
+        <h1>{asset.title}</h1>
+        {asset.niche && (
+          <p style={{ color: '#9ca3af', marginTop: 4 }}>Niche: {asset.niche}</p>
+        )}
+
+        <div
+          style={{
+            marginTop: 16,
+            borderRadius: 12,
+            overflow: 'hidden',
+            border: '1px solid #1f2937',
+            maxWidth: 480,
+          }}
+        >
+          {asset.imageUrl ? (
+            <Image
+              src={assetSrc}
+              alt={asset.title}
+              style={{ width: '100%', display: 'block' }}
+              width={800}
+              height={450}
+            />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                padding: 40,
+                textAlign: 'center',
+                background: '#111827',
+              }}
+            >
+              No image
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right: Product picker */}
+      <div>
+        <h2>Choose a product</h2>
+        {products.length === 0 && <p>No products available.</p>}
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 16,
+            marginTop: 16,
+          }}
+        >
+          {products.map((p) => (
+            <div
+              key={p.id}
+              style={{
+                borderRadius: 12,
+                border: '1px solid #1f2937',
+                background: '#020617',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  aspectRatio: '1 / 1',
+                  background: '#111827',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                {p.mockupImageUrl ? (
+                  <Image
+                    src={p.mockupImageUrl}
+                    alt={p.name}
+                    fill
+                    sizes="(max-width: 1024px) 50vw, 220px"
+                    style={{
+                      objectFit: 'cover',
+                    }}
+                  />
+                ) : (
+                  <Image
+                    src={FALLBACK_MOCK}
+                    alt="No mockup yet"
+                    width={256}
+                    height={256}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                )}
+                <span
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  No mockup
+                </span>
+              </div>
+              <div style={{ padding: 12, flexGrow: 1 }}>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: '1rem',
+                    marginBottom: 4,
+                  }}
+                >
+                  {p.name}
+                </h3>
+                {p.base_price != null && (
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: '0.9rem',
+                      color: '#9ca3af',
+                    }}
+                  >
+                    ${p.base_price.toFixed(2)}
+                  </p>
+                )}
+                {p.category && (
+                  <p
+                    style={{
+                      margin: '4px 0 0',
+                      fontSize: '0.8rem',
+                      color: '#6b7280',
+                    }}
+                  >
+                    {p.category}
+                  </p>
+                )}
+              </div>
+              <div style={{ padding: '0 12px 12px' }}>
+                <button
+                  onClick={() => handleCustomize(p.id)}
+                  style={{ width: '100%' }}
+                >
+                  Customize with this
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+FILE: src/app/page.tsx
+import Image from 'next/image';
+
+export default function HomePage() {
+  return (
+    // THE GRID CONTAINER: 1 column on mobile, 3 on desktop
+    <div className=" p-8 grid grid-cols-1 md:grid-cols-3 gap-6 font-sans">
+      {/* BOX 1: Hero Header (Spans 2 columns on desktop) */}
+      <section className="md:col-span-2 rounded-4xl border border-white/10 bg-linear-to-br from-cyan-500/20 to-purple-600/20 p-10 backdrop-blur-xl">
+        <h1 className="text-5xl font-light tracking-tight">
+          AI Merch <span className="font-bold text-cyan-400">Engine</span>
+        </h1>
+        <p className="mt-4 text-xl text-white/60">
+          Welcome to your dev storefront.
+        </p>
+      </section>
+
+      {/* BOX 2: Status/System Tile */}
+      <section className="rounded-4xl border border-white/10 bg-white/5 p-8 flex flex-col justify-center items-center text-center">
+        <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse mb-4" />
+        <h2 className="text-sm font-mono uppercase tracking-widest text-white/40">
+          System Status
+        </h2>
+        <p className="text-lg font-medium">Ready for Deployment</p>
+      </section>
+
+      {/* BOX 3: Navigation/Test Tile */}
+      <section className="rounded-4xl border border-white/10 bg-white/5 p-8 hover:bg-white/10 transition-colors">
+        <h3 className="text-lg font-semibold mb-2">Debug Console</h3>
+        <p className="text-white/60 mb-6">
+          Verify your real-time Firestore synchronization.
+        </p>
+        <a
+          href="/test"
+          className="inline-block px-6 py-3 rounded-full bg-cyan-500 text-black font-bold text-sm"
+        >
+          Run /test Diagnostic
+        </a>
+      </section>
+
+      {/* BOX 4: Compact Product Tile */}
+      <section className="rounded-4xl border border-white/10 bg-white/5 overflow-hidden flex flex-col group p-2">
+        {/* Visual Stimuli: The Image */}
+        <div className="aspect-square relative overflow-hidden rounded-3xl bg-white/5">
+          <Image
+            src="https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=1000&auto=format&fit=crop"
+            alt="AI Hoodie"
+            fill // This tells Next.js to fill the container instead of needing a set width/height
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          />
+        </div>
+
+        {/* Purpose: The Details */}
+        <div className="p-4">
+          <h3 className="text-lg font-bold text-white truncate">
+            Cyber Hoodie
+          </h3>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-cyan-400 font-mono text-sm">$65.00</span>
+            <button className="h-8 w-8 rounded-full bg-white text-black flex items-center justify-center hover:bg-cyan-400 transition-colors">
+              <span className="text-xl leading-none">+</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* NEW BOX 5: The Actual n8n Payload / Logs */}
+      <section className="rounded-4xl border border-dashed border-white/10 bg-white/2 p-6 flex flex-col">
+        <h3 className="text-xs font-mono text-white/30 uppercase mb-4">
+          Live Activity
+        </h3>
+        <div className="flex-1 font-mono text-[10px] text-cyan-400/60 overflow-hidden">
+          <p className="">{'>'} Listening for webhook...</p>
+          <p className="mt-1">{'>'} Connection: STABLE</p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+FILE: src/app/checkout/cancel/page.tsx
+// src/app/checkout/cancel/page.tsx
+import Link from 'next/link';
+
+export default function CheckoutCancelPage() {
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <h1 style={{ fontSize: '2rem', marginBottom: 8 }}>Checkout cancelled</h1>
+      <p style={{ marginBottom: 16 }}>
+        Your payment was cancelled. You can review your cart and try again when
+        you&apos;re ready.
+      </p>
+
+      <Link
+        href="/cart"
+        style={{
+          padding: '8px 16px',
+          borderRadius: 8,
+          border: '1px solid #4b5563',
+          background: '#111827',
+          color: '#e5e7eb',
+          textDecoration: 'none',
+          fontSize: '0.9rem',
+        }}
+      >
+        Back to cart
+      </Link>
+    </main>
+  );
+}
+
+FILE: src/app/checkout/success/page.tsx
+// src/app/checkout/success/page.tsx
+import Link from 'next/link';
+
+type Props = {
+  searchParams?: { session_id?: string };
+};
+
+export default function CheckoutSuccessPage({ searchParams }: Props) {
+  const sessionId = searchParams?.session_id;
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <h1 style={{ fontSize: '2rem', marginBottom: 8 }}>Thank you!</h1>
+      <p style={{ marginBottom: 16 }}>
+        Your order has been received and is being processed.
+      </p>
+
+      {sessionId && (
+        <p
+          style={{
+            marginBottom: 16,
+            fontSize: '0.85rem',
+            color: '#9ca3af',
+          }}
+        >
+          Stripe session id: <code>{sessionId}</code>
+        </p>
+      )}
+
+      <Link
+        href="/"
+        style={{
+          padding: '8px 16px',
+          borderRadius: 8,
+          border: '1px solid #10b981',
+          background: '#022c22',
+          color: '#a7f3d0',
+          textDecoration: 'none',
+          fontSize: '0.9rem',
+        }}
+      >
+        Back to home
+      </Link>
+    </main>
+  );
+}
+
+FILE: src/app/cart/page.tsx
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
+
+const CART_KEY = 'aiMerchCart';
+
+type CartItem = {
+  productId: string;
+  productName: string;
+  price?: number;
+  assetId?: string;
+  assetTitle?: string;
+  scale?: number;
+  position?: { x: number; y: number };
+  mockupImageUrl?: string | null;
+};
+
+export default function CartPage() {
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load cart from localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const raw = window.localStorage.getItem(CART_KEY);
+      if (!raw) {
+        setItems([]);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setItems(parsed);
+      } else {
+        setItems([]);
+      }
+    } catch (err) {
+      console.error('[CART] Error reading cart:', err);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const saveCart = (next: CartItem[]) => {
+    setItems(next);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CART_KEY, JSON.stringify(next));
+    }
+  };
+
+  const handleClearCart = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(CART_KEY);
+    }
+    setItems([]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    const next = items.filter((_, i) => i !== index);
+    saveCart(next);
+  };
+
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const handleCheckout = async () => {
+    setCheckoutError(null);
+    setCheckingOut(true);
+
+    try {
+      const payload = {
+        // anonymous for now
+        userId: 'anon',
+        items: items.map((item, index) => ({
+          // your API expects an item.id — cart currently doesn’t have one
+          id: `${Date.now()}-${index}`,
+          assetId: item.assetId ?? '',
+          productId: item.productId,
+          assetTitle: item.assetTitle ?? 'Untitled design',
+          productName: item.productName ?? 'Product',
+
+          // your cart has no quantity yet, so default 1
+          quantity: 1,
+        })),
+      };
+
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Checkout failed (${res.status})`);
+      }
+
+      if (!data?.url) {
+        throw new Error('Stripe session URL missing from response');
+      }
+
+      window.location.href = data.url;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      console.error('[CART] Checkout error:', e);
+      setCheckoutError(e?.message ?? 'Checkout failed');
+      setCheckingOut(false);
+    }
+  };
+
+  const total = items.reduce((sum, item) => {
+    const p =
+      typeof item.price === 'number' && !Number.isNaN(item.price)
+        ? item.price
+        : 0;
+    return sum + p;
+  }, 0);
+
+  // ---------- Render states ----------
+
+  if (loading) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <h1>Cart</h1>
+        <p>Loading cart…</p>
+      </main>
+    );
+  }
+
+  if (!items.length) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <h1>Cart</h1>
+        <p>Your cart is empty.</p>
+      </main>
+    );
+  }
+
+  // ---------- Main UI ----------
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+      }}
+    >
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          maxWidth: 960,
+          marginBottom: 16,
+        }}
+      >
+        <h1 style={{ margin: 0 }}>Cart</h1>
+
+        <button
+          onClick={handleClearCart}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 6,
+            border: '1px solid #ef4444',
+            background: '#111827',
+            color: '#fecaca',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+          }}
+        >
+          Clear cart
+        </button>
+      </header>
+
+      <section
+        style={{
+          maxWidth: 960,
+          marginBottom: 24,
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+            gap: 24,
+          }}
+        >
+          {/* Items list */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr)',
+              gap: 16,
+            }}
+          >
+            {items.map((item, index) => {
+              const priceNumber =
+                typeof item.price === 'number' && !Number.isNaN(item.price)
+                  ? item.price
+                  : null;
+
+              return (
+                // inside items.map(...)
+                <article
+                  key={index}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '140px minmax(0, 1fr)',
+                    gap: 16,
+                    padding: 16,
+                    borderRadius: 12,
+                    border: '1px solid #1f2937',
+                    background: '#020617',
+                  }}
+                >
+                  {/* Thumbnail column */}
+                  <div
+                    style={{
+                      width: '100%',
+                      aspectRatio: '1 / 1',
+                      position: 'relative',
+                      borderRadius: 8,
+                      border: '1px solid #374151',
+                      background: '#020617',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {item.mockupImageUrl ? (
+                      <Image
+                        src={item.mockupImageUrl}
+                        alt={item.assetTitle ?? item.productName ?? 'Cart item'}
+                        fill
+                        sizes="140px"
+                        style={{ objectFit: 'contain' }}
+                        onError={(e) =>
+                          console.error(
+                            '[CART] Image failed to load:',
+                            e.currentTarget.src,
+                          )
+                        }
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.8rem',
+                          color: '#6b7280',
+                        }}
+                      >
+                        No preview image
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Details column (unchanged) */}
+                  <div>
+                    <h2 style={{ margin: 0, marginBottom: 4 }}>
+                      {item.productName ?? 'Product'}
+                    </h2>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        marginBottom: 4,
+                        fontSize: '0.9rem',
+                        color: '#9ca3af',
+                      }}
+                    >
+                      Design:{' '}
+                      <strong>{item.assetTitle ?? '(no design title)'}</strong>
+                    </p>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        marginBottom: 4,
+                        fontSize: '0.9rem',
+                        color: '#9ca3af',
+                      }}
+                    >
+                      Price:{' '}
+                      {priceNumber !== null
+                        ? `$${priceNumber.toFixed(2)}`
+                        : 'Not set'}
+                    </p>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        marginTop: 8,
+                        fontSize: '0.8rem',
+                        color: '#6b7280',
+                      }}
+                    >
+                      productId: <code>{item.productId}</code>
+                      <br />
+                      assetId: <code>{item.assetId ?? '(none)'}</code>
+                    </p>
+
+                    <button
+                      onClick={() => handleRemoveItem(index)}
+                      style={{
+                        marginTop: 8,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #4b5563',
+                        background: '#111827',
+                        color: '#e5e7eb',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Summary column */}
+          <aside
+            style={{
+              padding: 16,
+              borderRadius: 12,
+              border: '1px solid #1f2937',
+              background: '#020617',
+              alignSelf: 'flex-start',
+            }}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: 8 }}>Summary</h2>
+            <p
+              style={{
+                margin: 0,
+                marginBottom: 4,
+                fontSize: '0.9rem',
+                color: '#9ca3af',
+              }}
+            >
+              Items: <strong>{items.length}</strong>
+            </p>
+            <p
+              style={{
+                margin: 0,
+                marginBottom: 16,
+                fontSize: '0.9rem',
+                color: '#9ca3af',
+              }}
+            >
+              Total: <strong>${total.toFixed(2)}</strong>
+            </p>
+
+            {checkoutError && (
+              <p
+                style={{
+                  color: '#fca5a5',
+                  fontSize: '0.85rem',
+                  marginBottom: 12,
+                }}
+              >
+                {checkoutError}
+              </p>
+            )}
+
+            {/* Hook this up to your Stripe checkout when you're ready */}
+            <button
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #10b981',
+                background: '#022c22',
+                color: '#a7f3d0',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+              onClick={handleCheckout}
+              disabled={checkingOut}
+            >
+              Proceed to checkout
+            </button>
+          </aside>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+FILE: src/app/shop/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+type ProductDoc = {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  active?: boolean;
+  mockupImageUrl?: string | null;
+  defaultAssetId?: string | null;
+};
+
+export default function ShopPage() {
+  const [products, setProducts] = useState<ProductDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setError(null);
+        setLoading(true);
+
+        const productsCol = collection(db, 'products');
+        // Only active products; ordered by name
+        const q = query(
+          productsCol,
+          where('active', '==', true),
+          orderBy('name', 'asc'),
+        );
+        const snap = await getDocs(q);
+
+        const items: ProductDoc[] = snap.docs.map((doc) => {
+          const data = doc.data() as any;
+
+          // Use the same robust resolution of mockup URL as admin
+          const resolvedMockupUrl: string | null =
+            data.mockupImageUrl ??
+            data.mockup_image_url ??
+            data.imageUrl ??
+            null;
+
+          return {
+            id: doc.id,
+            name: data.name ?? 'Unnamed product',
+            description: data.description ?? '',
+            price: typeof data.price === 'number' ? data.price : undefined,
+            active: typeof data.active === 'boolean' ? data.active : true,
+            mockupImageUrl: resolvedMockupUrl,
+            defaultAssetId: data.defaultAssetId ?? null,
+          };
+        });
+
+        setProducts(items);
+      } catch (err: any) {
+        console.error('[SHOP] Error loading products:', err);
+        setError(err?.message || 'Failed to load products.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+        }}
+      >
+        <header
+          style={{
+            marginBottom: 24,
+          }}
+        >
+          <h1 style={{ margin: 0 }}>Shop</h1>
+          <p
+            style={{
+              margin: 0,
+              marginTop: 4,
+              fontSize: '0.9rem',
+              color: '#9ca3af',
+            }}
+          >
+            Browse AI-generated designs and customize them before checkout.
+          </p>
+        </header>
+
+        {loading && (
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: '#9ca3af',
+            }}
+          >
+            Loading products…
+          </p>
+        )}
+
+        {error && (
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: '#fca5a5',
+              marginBottom: 12,
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        {!loading && !error && products.length === 0 && (
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: '#9ca3af',
+            }}
+          >
+            No products are available yet. Check back soon!
+          </p>
+        )}
+
+        {!loading && !error && products.length > 0 && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 16,
+            }}
+          >
+            {products.map((p) => {
+              const priceDisplay =
+                typeof p.price === 'number'
+                  ? `$${p.price.toFixed(2)}`
+                  : 'Price TBA';
+
+              const canCustomize = !!p.defaultAssetId;
+
+              return (
+                <article
+                  key={p.id}
+                  style={{
+                    borderRadius: 12,
+                    border: '1px solid #1f2937',
+                    background: '#020617',
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  {/* Image */}
+                  <div
+                    style={{
+                      borderRadius: 10,
+                      border: '1px solid #111827',
+                      overflow: 'hidden',
+                      background: '#020617',
+                      aspectRatio: '1 / 1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {p.mockupImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.mockupImageUrl}
+                        alt={p.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
+                        onError={(e) =>
+                          console.error(
+                            '[SHOP] Failed to load product image:',
+                            e.currentTarget.src,
+                          )
+                        }
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: '0.8rem',
+                          color: '#6b7280',
+                          textAlign: 'center',
+                          padding: 8,
+                        }}
+                      >
+                        No image yet
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Text info */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      flexGrow: 1,
+                    }}
+                  >
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontSize: '1rem',
+                      }}
+                    >
+                      {p.name}
+                    </h2>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: '0.9rem',
+                        color: '#9ca3af',
+                      }}
+                    >
+                      {priceDisplay}
+                    </p>
+                    {p.description && (
+                      <p
+                        style={{
+                          margin: 0,
+                          marginTop: 4,
+                          fontSize: '0.8rem',
+                          color: '#6b7280',
+                        }}
+                      >
+                        {p.description.length > 120
+                          ? p.description.slice(0, 117) + '...'
+                          : p.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Buttons */}
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: 'flex',
+                      gap: 8,
+                    }}
+                  >
+                    <Link
+                      href={`/shop/${p.id}`}
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        borderRadius: 8,
+                        border: '1px solid #4b5563',
+                        background: '#111827',
+                        color: '#e5e7eb',
+                        fontSize: '0.85rem',
+                        textDecoration: 'none',
+                        textAlign: 'center',
+                      }}
+                    >
+                      View details
+                    </Link>
+
+                    {canCustomize ? (
+                      <Link
+                        href={`/studio?productId=${p.id}&assetId=${p.defaultAssetId}`}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #10b981',
+                          background: '#022c22',
+                          color: '#a7f3d0',
+                          fontSize: '0.85rem',
+                          textDecoration: 'none',
+                          textAlign: 'center',
+                        }}
+                      >
+                        Customize
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #374151',
+                          background: '#020617',
+                          color: '#4b5563',
+                          fontSize: '0.8rem',
+                          cursor: 'not-allowed',
+                        }}
+                        title="Set a default asset on this product to enable customization."
+                      >
+                        No default design
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+FILE: src/app/shop/[productId]/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import Image from 'next/Image';
+
+type ProductDoc = {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  active?: boolean;
+  mockupImageUrl?: string | null;
+  defaultAssetId?: string | null;
+};
+
+export default function ProductDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const productId = params?.productId as string;
+
+  const [product, setProduct] = useState<ProductDoc | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!productId) return;
+      try {
+        setError(null);
+        setLoading(true);
+
+        const ref = doc(db, 'products', productId);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          setError('Product not found.');
+          setProduct(null);
+          return;
+        }
+
+        const data = snap.data() as any;
+
+        const resolvedMockupUrl: string | null =
+          data.mockupImageUrl ?? data.mockup_image_url ?? data.imageUrl ?? null;
+
+        const isActive = typeof data.active === 'boolean' ? data.active : true;
+
+        const p: ProductDoc = {
+          id: snap.id,
+          name: data.name ?? 'Unnamed product',
+          description: data.description ?? '',
+          price: typeof data.price === 'number' ? data.price : undefined,
+          active: isActive,
+          mockupImageUrl: resolvedMockupUrl,
+          defaultAssetId: data.defaultAssetId ?? null,
+        };
+
+        setProduct(p);
+      } catch (err: any) {
+        console.error('[SHOP] Error loading product detail:', err);
+        setError(err?.message || 'Failed to load product.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [productId]);
+
+  if (loading) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 960,
+            margin: '0 auto',
+          }}
+        >
+          <p
+            style={{
+              fontSize: '0.95rem',
+              color: '#9ca3af',
+            }}
+          >
+            Loading product…
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!product) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          background: '#020617',
+          color: '#e5e7eb',
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 960,
+            margin: '0 auto',
+          }}
+        >
+          <h1 style={{ marginTop: 0 }}>Product not found</h1>
+          {error && (
+            <p
+              style={{
+                fontSize: '0.9rem',
+                color: '#fca5a5',
+              }}
+            >
+              {error}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push('/shop')}
+            style={{
+              marginTop: 12,
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid #4b5563',
+              background: '#111827',
+              color: '#e5e7eb',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+            }}
+          >
+            Back to shop
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  const priceDisplay =
+    typeof product.price === 'number'
+      ? `$${product.price.toFixed(2)}`
+      : 'Price TBA';
+
+  const canCustomize = !!product.defaultAssetId;
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#020617',
+        color: '#e5e7eb',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 960,
+          margin: '0 auto',
+        }}
+      >
+        {/* Breadcrumb / back link */}
+        <div
+          style={{
+            marginBottom: 16,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => router.push('/shop')}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 999,
+              border: '1px solid #4b5563',
+              background: '#111827',
+              color: '#e5e7eb',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+            }}
+          >
+            ← Back to shop
+          </button>
+        </div>
+
+        {/* Layout: image left, details right */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)',
+            gap: 24,
+            alignItems: 'flex-start',
+          }}
+        >
+          {/* Image side */}
+          <div>
+            <div
+              style={{
+                borderRadius: 16,
+                border: '1px solid #1f2937',
+                background: '#020617',
+                padding: 12,
+              }}
+            >
+              <div
+                style={{
+                  borderRadius: 12,
+                  border: '1px solid #111827',
+                  overflow: 'hidden',
+                  background: '#020617',
+                  aspectRatio: '1 / 1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {product.mockupImageUrl ? (
+                  <Image
+                    src={product.mockupImageUrl}
+                    alt={product.name}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                    onError={(e) =>
+                      console.error(
+                        '[SHOP] Failed to load product image:',
+                        e.currentTarget.src,
+                      )
+                    }
+                  />
+                ) : (
+                  <span
+                    style={{
+                      fontSize: '0.9rem',
+                      color: '#6b7280',
+                      textAlign: 'center',
+                      padding: 16,
+                    }}
+                  >
+                    No preview image yet
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Detail side */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: '1.6rem',
+                }}
+              >
+                {product.name}
+              </h1>
+              <p
+                style={{
+                  margin: 0,
+                  marginTop: 4,
+                  fontSize: '1.1rem',
+                  color: '#e5e7eb',
+                }}
+              >
+                {priceDisplay}
+              </p>
+              {!product.active && (
+                <p
+                  style={{
+                    margin: 0,
+                    marginTop: 4,
+                    fontSize: '0.85rem',
+                    color: '#f97316',
+                  }}
+                >
+                  This product is currently inactive.
+                </p>
+              )}
+            </div>
+
+            {product.description && (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.95rem',
+                  color: '#d1d5db',
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {product.description}
+              </p>
+            )}
+
+            <div
+              style={{
+                marginTop: 8,
+                padding: 12,
+                borderRadius: 12,
+                border: '1px solid #1f2937',
+                background: '#020617',
+                fontSize: '0.85rem',
+                color: '#9ca3af',
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  marginBottom: 4,
+                }}
+              >
+                This product supports on-the-fly customization. You can adjust
+                the design placement and scale in our Studio before adding it to
+                your cart.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div
+              style={{
+                marginTop: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              {canCustomize ? (
+                <Link
+                  href={`/studio?productId=${product.id}&assetId=${product.defaultAssetId}`}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 999,
+                    border: '1px solid #10b981',
+                    background: '#022c22',
+                    color: '#a7f3d0',
+                    fontSize: '0.95rem',
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                  }}
+                >
+                  Customize this design
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 999,
+                    border: '1px solid #374151',
+                    background: '#020617',
+                    color: '#4b5563',
+                    fontSize: '0.9rem',
+                    cursor: 'not-allowed',
+                  }}
+                  title="Set a default asset for this product in the admin panel to enable customization."
+                >
+                  No default design available
+                </button>
+              )}
+
+              {/* Optional: direct add-to-cart later, once you have a non-Studio path */}
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.8rem',
+                  color: '#6b7280',
+                }}
+              >
+                To purchase this item, start by customizing it in Studio, then
+                add it to your cart from there.
+              </p>
+            </div>
+
+            {/* Debug info (optional, nice during development) */}
+            <div
+              style={{
+                marginTop: 12,
+                padding: 8,
+                borderRadius: 8,
+                border: '1px dashed #1f2937',
+                background: '#020617',
+                fontSize: '0.75rem',
+                color: '#6b7280',
+              }}
+            >
+              <div>
+                Product ID: <code>{product.id}</code>
+              </div>
+              <div>
+                defaultAssetId:{' '}
+                <code>{product.defaultAssetId ?? '(none)'}</code>
+              </div>
+              <div
+                style={{
+                  marginTop: 4,
+                  wordBreak: 'break-all',
+                }}
+              >
+                mockupImageUrl:{' '}
+                <code>{product.mockupImageUrl ?? '(none)'}</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
