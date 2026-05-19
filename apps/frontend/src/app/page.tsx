@@ -155,6 +155,37 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── 5. NEW ARRIVALS GRID ─────────────────────────────── */}
+      <section className="border-t border-white/5 bg-secondary px-6 py-14">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-6 flex items-baseline justify-between">
+            <div>
+              <p className="mb-1 text-xs tracking-[0.3em] text-accent uppercase">Shop</p>
+              <h2 className="text-2xl font-bold text-primary">New Arrivals</h2>
+            </div>
+            <Link
+              href="/products"
+              className="border-b border-muted/40 pb-0.5 text-xs text-muted transition-colors hover:border-primary hover:text-primary"
+            >
+              Browse All →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            {['$29.99', '$34.99', '$59.99', '$24.99', '$44.99', '$39.99'].map((price, i) => (
+              <div
+                key={i}
+                className="overflow-hidden rounded-lg border border-white/8 bg-background"
+              >
+                <div className="h-[100px] bg-white/5" />
+                <div className="p-3">
+                  <p className="text-xs text-muted">{price}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }
