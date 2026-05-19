@@ -8,22 +8,22 @@ export function Header() {
   const { cartCount, setIsOpen } = useCart();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-secondary/90 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center space-x-2">
-          <span className="text-xl font-bold font-heading tracking-tight">
+          <span className="text-xl font-bold font-heading tracking-widest text-accent">
             AI MERCH
           </span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-          <Link
-            href="/products"
-            className="transition-colors hover:text-primary"
-          >
+          <Link href="/products" className="text-muted transition-colors hover:text-primary">
             Shop
           </Link>
-          <Link href="/about" className="transition-colors hover:text-primary">
-            About
+          <Link href="/studio/generate" className="text-muted transition-colors hover:text-primary">
+            Studio
+          </Link>
+          <Link href="/gallery" className="text-muted transition-colors hover:text-primary">
+            Gallery
           </Link>
         </nav>
         <div className="flex items-center gap-4">
