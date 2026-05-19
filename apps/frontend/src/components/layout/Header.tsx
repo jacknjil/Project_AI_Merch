@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '../ui/Button';
 import { useCart } from '@/context/CartContext';
 
 export function Header() {
+  const router = useRouter();
   const { cartCount, setIsOpen } = useCart();
 
   return (
@@ -27,7 +29,7 @@ export function Header() {
           </Link>
         </nav>
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => router.push('/login')}>
             Sign In
           </Button>
           <Button variant="primary" size="sm" onClick={() => setIsOpen(true)}>
