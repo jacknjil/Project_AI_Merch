@@ -34,7 +34,7 @@ function getOrigin(req: NextRequest) {
 // YYYY-MM-DD in America/New_York
 function nyDayKey(d = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Los Angelos',
+    timeZone: 'America/Los_Angeles',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
       if (!snap.exists) {
         tx.set(capRef, {
           day: dayKey,
-          tz: 'America/Los Angelos',
+          tz: 'America/Los_Angeles',
           used: count,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
