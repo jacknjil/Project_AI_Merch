@@ -84,6 +84,7 @@ The design is intentionally structured to make later enhancements drop-in:
 - **Step flow (Option B):** The control panel's vertical stack can be wrapped in a stepper without changing the underlying fields or state.
 - **Collapsible sidebar (Option C):** A single `isOpen` boolean + CSS transition on the left panel width is all that's needed — the two-column flex layout already supports it.
 - **Post-generation actions:** Adding "Apply to product" or "Add to cart" buttons on result cards requires only adding CTA elements to the card — the grid and card structure don't change.
+- **Theming:** The page is locked to the dark cyberpunk theme for Sprint 3, matching the app-wide forced dark mode in `layout.tsx`. When a theme system is introduced, it will use CSS variable overrides on `:root`; all Tailwind classes used here (`bg-*`, `text-*`, `border-*`) are already compatible with that pattern — no rework needed.
 
 ---
 
