@@ -28,12 +28,13 @@ export default function ProductDetailPage({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true; // Prevents state updates on unmounted component
+    let isMounted = true;
 
     async function load() {
       try {
         setLoading(true);
-        const p = await productId;
+        const res = await fetch(`/api/products/${productId}`);
+        const p: Product = await res.json();
         if (isMounted) {
           setProduct(p);
           setLoading(false);
@@ -49,7 +50,6 @@ export default function ProductDetailPage({
       isMounted = false;
     };
   }, [productId]);
-  // Removed getProduct from dependency to stop the flicker
 
   if (loading) {
     return (
