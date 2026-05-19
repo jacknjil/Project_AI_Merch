@@ -1,13 +1,10 @@
-"use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client';
 
-import React, { useEffect, useMemo, useState } from "react";
-import { db } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import React, { useEffect, useMemo, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import Image from 'next/image';
 
 type MockupDoc = {
   id: string;
@@ -20,14 +17,14 @@ type MockupDoc = {
 export default function MockupsPage() {
   const [mockups, setMockups] = useState<MockupDoc[]>([]);
   const [loading, setLoading] = useState(true);
-  const [productFilter, setProductFilter] = useState("");
-  const [assetFilter, setAssetFilter] = useState("");
+  const [productFilter, setProductFilter] = useState('');
+  const [assetFilter, setAssetFilter] = useState('');
 
   useEffect(() => {
     const load = async () => {
       try {
-        const colRef = collection(db, "mockups");
-        const q = query(colRef, orderBy("created_at", "desc"));
+        const colRef = collection(db, 'mockups');
+        const q = query(colRef, orderBy('created_at', 'desc'));
         const snap = await getDocs(q);
 
         const list: MockupDoc[] = snap.docs.map((docSnap) => {
@@ -42,8 +39,8 @@ export default function MockupsPage() {
 
           return {
             id: docSnap.id,
-            assetId: data.assetId ?? "",
-            productId: data.productId ?? "",
+            assetId: data.assetId ?? '',
+            productId: data.productId ?? '',
             imageUrl: data.imageUrl,
             created_at: created,
           };
@@ -51,7 +48,7 @@ export default function MockupsPage() {
 
         setMockups(list);
       } catch (err) {
-        console.error("Failed to load mockups:", err);
+        console.error('Failed to load mockups:', err);
       } finally {
         setLoading(false);
       }
@@ -75,12 +72,11 @@ export default function MockupsPage() {
   const filteredMockups = useMemo(
     () =>
       mockups.filter((m) => {
-        const okProduct =
-          !productFilter || m.productId === productFilter;
+        const okProduct = !productFilter || m.productId === productFilter;
         const okAsset = !assetFilter || m.assetId === assetFilter;
         return okProduct && okAsset;
       }),
-    [mockups, productFilter, assetFilter]
+    [mockups, productFilter, assetFilter],
   );
 
   if (loading) {
@@ -95,35 +91,35 @@ export default function MockupsPage() {
   return (
     <main style={{ padding: 24 }}>
       <h1>Mockups</h1>
-      <p style={{ color: "#9ca3af", marginBottom: 16 }}>
-        All saved mockup images generated from the Studio. Use the
-        filters to inspect by product or asset. Each card links back to
-        the Studio with the same asset/product.
+      <p style={{ color: '#9ca3af', marginBottom: 16 }}>
+        All saved mockup images generated from the Studio. Use the filters to
+        inspect by product or asset. Each card links back to the Studio with the
+        same asset/product.
       </p>
 
       {/* Filters */}
       <div
         style={{
-          display: "flex",
-          flexWrap: "wrap",
+          display: 'flex',
+          flexWrap: 'wrap',
           gap: 12,
           marginBottom: 16,
         }}
       >
-        <div style={{ flex: "0 0 220px", minWidth: 220 }}>
-          <label style={{ fontSize: "0.9rem" }}>
+        <div style={{ flex: '0 0 220px', minWidth: 220 }}>
+          <label style={{ fontSize: '0.9rem' }}>
             Filter by productId
             <select
               value={productFilter}
               onChange={(e) => setProductFilter(e.target.value)}
               style={{
                 marginTop: 4,
-                width: "100%",
+                width: '100%',
                 padding: 8,
                 borderRadius: 8,
-                border: "1px solid #1f2937",
-                background: "#020617",
-                color: "#e5e7eb",
+                border: '1px solid #1f2937',
+                background: '#020617',
+                color: '#e5e7eb',
               }}
             >
               <option value="">All products</option>
@@ -136,20 +132,20 @@ export default function MockupsPage() {
           </label>
         </div>
 
-        <div style={{ flex: "0 0 220px", minWidth: 220 }}>
-          <label style={{ fontSize: "0.9rem" }}>
+        <div style={{ flex: '0 0 220px', minWidth: 220 }}>
+          <label style={{ fontSize: '0.9rem' }}>
             Filter by assetId
             <select
               value={assetFilter}
               onChange={(e) => setAssetFilter(e.target.value)}
               style={{
                 marginTop: 4,
-                width: "100%",
+                width: '100%',
                 padding: 8,
                 borderRadius: 8,
-                border: "1px solid #1f2937",
-                background: "#020617",
-                color: "#e5e7eb",
+                border: '1px solid #1f2937',
+                background: '#020617',
+                color: '#e5e7eb',
               }}
             >
               <option value="">All assets</option>
@@ -163,26 +159,23 @@ export default function MockupsPage() {
         </div>
       </div>
 
-      {filteredMockups.length === 0 && (
-        <p>No mockups match your filters.</p>
-      )}
+      {filteredMockups.length === 0 && <p>No mockups match your filters.</p>}
 
       {filteredMockups.length > 0 && (
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fill, minmax(220px, 1fr))",
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
             gap: 16,
           }}
         >
           {filteredMockups.map((m) => {
             const dateLabel = m.created_at
               ? m.created_at.toLocaleString()
-              : "Unknown time";
+              : 'Unknown time';
 
             const studioUrl = `/studio?assetId=${encodeURIComponent(
-              m.assetId
+              m.assetId,
             )}&productId=${encodeURIComponent(m.productId)}`;
 
             return (
@@ -190,28 +183,28 @@ export default function MockupsPage() {
                 key={m.id}
                 style={{
                   borderRadius: 12,
-                  border: "1px solid #1f2937",
-                  background: "#020617",
+                  border: '1px solid #1f2937',
+                  background: '#020617',
                   padding: 12,
                 }}
               >
                 <div
                   style={{
-                    width: "100%",
-                    aspectRatio: "1 / 1",
+                    width: '100%',
+                    aspectRatio: '1 / 1',
                     borderRadius: 8,
-                    overflow: "hidden",
+                    overflow: 'hidden',
                     marginBottom: 8,
-                    background: "#111827",
+                    background: '#111827',
                   }}
                 >
-                  <img
+                  <Image
                     src={m.imageUrl}
                     alt={`Mockup ${m.id}`}
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
                     }}
                   />
                 </div>
@@ -219,8 +212,8 @@ export default function MockupsPage() {
                 <p
                   style={{
                     margin: 0,
-                    fontSize: "0.8rem",
-                    color: "#9ca3af",
+                    fontSize: '0.8rem',
+                    color: '#9ca3af',
                     marginBottom: 4,
                   }}
                 >
@@ -229,8 +222,8 @@ export default function MockupsPage() {
                 <p
                   style={{
                     margin: 0,
-                    fontSize: "0.75rem",
-                    color: "#9ca3af",
+                    fontSize: '0.75rem',
+                    color: '#9ca3af',
                   }}
                 >
                   assetId: <code>{m.assetId}</code>
@@ -239,9 +232,9 @@ export default function MockupsPage() {
                 </p>
                 <p
                   style={{
-                    margin: "4px 0 0 0",
-                    fontSize: "0.75rem",
-                    color: "#6b7280",
+                    margin: '4px 0 0 0',
+                    fontSize: '0.75rem',
+                    color: '#6b7280',
                   }}
                 >
                   {dateLabel}
@@ -250,14 +243,14 @@ export default function MockupsPage() {
                 <a
                   href={studioUrl}
                   style={{
-                    display: "inline-block",
+                    display: 'inline-block',
                     marginTop: 8,
-                    fontSize: "0.8rem",
-                    padding: "4px 8px",
+                    fontSize: '0.8rem',
+                    padding: '4px 8px',
                     borderRadius: 6,
-                    border: "1px solid #2563eb",
-                    color: "#bfdbfe",
-                    textDecoration: "none",
+                    border: '1px solid #2563eb',
+                    color: '#bfdbfe',
+                    textDecoration: 'none',
                   }}
                 >
                   Open in Studio

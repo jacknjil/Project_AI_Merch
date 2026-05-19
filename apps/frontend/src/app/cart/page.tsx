@@ -78,7 +78,6 @@ export default function CartPage() {
         items: items.map((item, index) => ({
           // your API expects an item.id — cart currently doesn’t have one
           id: `${Date.now()}-${index}`,
-
           assetId: item.assetId ?? '',
           productId: item.productId,
           assetTitle: item.assetTitle ?? 'Untitled design',
@@ -222,6 +221,7 @@ export default function CartPage() {
                   : null;
 
               return (
+                // inside items.map(...)
                 <article
                   key={index}
                   style={{
@@ -234,34 +234,37 @@ export default function CartPage() {
                     background: '#020617',
                   }}
                 >
-                  <div>
+                  {/* Thumbnail column */}
+                  <div
+                    style={{
+                      width: '100%',
+                      aspectRatio: '1 / 1',
+                      position: 'relative',
+                      borderRadius: 8,
+                      border: '1px solid #374151',
+                      background: '#020617',
+                      overflow: 'hidden',
+                    }}
+                  >
                     {item.mockupImageUrl ? (
                       <Image
                         src={item.mockupImageUrl}
                         alt={item.assetTitle ?? item.productName ?? 'Cart item'}
+                        fill
+                        sizes="140px"
+                        style={{ objectFit: 'contain' }}
                         onError={(e) =>
                           console.error(
                             '[CART] Image failed to load:',
-                            e.currentTarget.src
+                            e.currentTarget.src,
                           )
                         }
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          maxHeight: 200,
-                          objectFit: 'contain',
-                          borderRadius: 8,
-                          border: '1px solid #374151',
-                          background: '#020617',
-                        }}
                       />
                     ) : (
                       <div
                         style={{
-                          width: '100%',
-                          aspectRatio: '1 / 1',
-                          borderRadius: 8,
-                          border: '1px dashed #374151',
+                          position: 'absolute',
+                          inset: 0,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -274,6 +277,7 @@ export default function CartPage() {
                     )}
                   </div>
 
+                  {/* Details column (unchanged) */}
                   <div>
                     <h2 style={{ margin: 0, marginBottom: 4 }}>
                       {item.productName ?? 'Product'}

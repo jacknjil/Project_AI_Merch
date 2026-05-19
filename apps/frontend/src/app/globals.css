@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
+/* Active theme: cyberpunk-dark
+   To swap themes later, add a [data-theme="x"] block and set it on <html> in layout.tsx */
 @theme {
-  --color-primary: #000000;
-  --color-secondary: #FFFFFF;
-  --color-accent: #00FF41;
-  --color-background: #F8F9FA;
+  --color-background: #0a0a0a;
+  --color-primary:    #f0f0f0;
+  --color-secondary:  #111111;
+  --color-accent:     #00FF41;
+  --color-muted:      #9ca3af;
 
-  --font-heading: "Inter", sans-serif;
-  --font-body: "Roboto", sans-serif;
+  --font-heading: "Inter", system-ui, sans-serif;
+  --font-body:    "Roboto", system-ui, sans-serif;
 }
 
 body {

@@ -23,13 +23,11 @@ ENV NODE_ENV=production
 # Create the folder structure the app expects
 RUN mkdir -p ops/firebase
 
-# Copy only what is needed to run the app
+# Standalone output bundles its own trimmed node_modules — copy only what the server needs
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/next.config.js ./next.config.js
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

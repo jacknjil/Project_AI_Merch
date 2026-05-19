@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -5,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import Image from 'next/image';
 
 type ProductDoc = {
   id: string;
@@ -227,35 +229,30 @@ export default function ProductDetailPage() {
                   justifyContent: 'center',
                 }}
               >
-                {product.mockupImageUrl ? (
-                  <img
-                    src={product.mockupImageUrl}
-                    alt={product.name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                    onError={(e) =>
-                      console.error(
-                        '[SHOP] Failed to load product image:',
-                        e.currentTarget.src
-                      )
-                    }
-                  />
-                ) : (
-                  <span
-                    style={{
-                      fontSize: '0.9rem',
-                      color: '#6b7280',
-                      textAlign: 'center',
-                      padding: 16,
-                    }}
-                  >
-                    No preview image yet
-                  </span>
-                )}
+                <div className="relative aspect-square w-full max-w-100 mx-auto overflow-hidden rounded-2xl bg-white/5 border border-white/10">
+                  {product.mockupImageUrl ? (
+                    <Image
+                      src={product.mockupImageUrl}
+                      alt={product.name}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className="object-cover transition-transform duration-500 hover:scale-105"
+                      priority
+                      onError={() =>
+                        console.error(
+                          '[SHOP] Failed to load image:',
+                          product.name,
+                        )
+                      }
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <span className="text-xs font-mono uppercase tracking-widest text-white/20">
+                        No Mockup Available
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
