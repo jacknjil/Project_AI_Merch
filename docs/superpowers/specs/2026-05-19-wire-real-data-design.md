@@ -16,15 +16,15 @@ Replace the hardcoded placeholder arrays in the homepage Featured Products and N
 
 Seven files changed. No new directories.
 
-| File | Action |
-|---|---|
-| `src/lib/types.ts` | Add `featured?: boolean`, `createdAt?: number` to `Product` |
-| `src/hooks/useProducts.ts` | Add `useFeaturedProducts()` and `useRecentProducts(limit)` exports |
-| `src/components/home/FeaturedProducts.tsx` | Create — client component for Featured Products section |
-| `src/components/home/NewArrivals.tsx` | Create — client component for New Arrivals section |
-| `src/app/page.tsx` | Replace two hardcoded sections with `<FeaturedProducts />` and `<NewArrivals />` |
-| `src/app/admin/products/new/page.tsx` | Add `featured` checkbox |
-| `src/app/admin/products/[productId]/page.tsx` | Add `featured` checkbox to edit form |
+| File                                          | Action                                                                           |
+| --------------------------------------------- | -------------------------------------------------------------------------------- |
+| `src/lib/types.ts`                            | Add `featured?: boolean`, `createdAt?: number` to `Product`                      |
+| `src/hooks/useProducts.ts`                    | Add `useFeaturedProducts()` and `useRecentProducts(limit)` exports               |
+| `src/components/home/FeaturedProducts.tsx`    | Create — client component for Featured Products section                          |
+| `src/components/home/NewArrivals.tsx`         | Create — client component for New Arrivals section                               |
+| `src/app/page.tsx`                            | Replace two hardcoded sections with `<FeaturedProducts />` and `<NewArrivals />` |
+| `src/app/admin/products/new/page.tsx`         | Add `featured` checkbox                                                          |
+| `src/app/admin/products/[productId]/page.tsx` | Add `featured` checkbox to edit form                                             |
 
 ---
 
@@ -42,39 +42,6 @@ createdAt?: number    // Firestore serverTimestamp — already written by admin 
 `createdAt` is already written by the admin create form via `serverTimestamp()`. Products created before this sprint that lack `createdAt` will sort to the bottom of New Arrivals (Firestore treats missing fields as smallest value).
 
 `featured` defaults to `false` / absent for all existing products. The edit form reads it with `data.featured ?? false` so existing products behave correctly without a migration.
-
----
-
-## Firestore Queries
-
-### `useFeaturedProducts()`
-
-```
-collection: products
-filters:  active == true, featured == true
-orderBy:  name asc
-limit:    4
-```
-
-### `useRecentProducts(limit: number)`
-
-```
-collection: products
-filters:  active == true
-orderBy:  createdAt desc
-limit:    caller-supplied (homepage passes 6)
-```
-
-### Composite indexes required
-
-Both queries require composite indexes. Create in Firebase console:
-
-| Collection | Fields | Order |
-|---|---|---|
-| `products` | `active` asc, `featured` asc, `name` asc | — |
-| `products` | `active` asc, `createdAt` desc | — |
-
-Firestore will return an error containing a direct console link if an index is missing — follow the link to create it. The app degrades gracefully: the affected section shows its error state while the rest of the page renders normally.
 
 ---
 
@@ -102,6 +69,17 @@ export function useRecentProducts(limit: number) {
 
 The existing `useProducts()` export is **unchanged**. `/shop`, `/products`, and any other consumers keep working.
 
+### Composite indexes required
+
+Both queries require composite indexes in Firestore. Create in Firebase console:
+
+| Collection | Fields | Order |
+| --- | --- | --- |
+| `products` | `active` asc, `featured` asc, `name` asc | — |
+| `products` | `active` asc, `createdAt` desc | — |
+
+Firestore returns an error with a direct console link if an index is missing — follow the link to create it. The app degrades gracefully: the affected section shows its error state while the rest of the page renders normally.
+
 ---
 
 ## Component Design
@@ -112,14 +90,15 @@ The existing `useProducts()` export is **unchanged**. `/shop`, `/products`, and 
 
 **Render states:**
 
-| State | Output |
-|---|---|
+| State   | Output                                                                                             |
+| ------- | -------------------------------------------------------------------------------------------------- |
 | Loading | 4 skeleton cards — same `min-w-[160px]` shape, gray placeholder box + muted lines, `animate-pulse` |
-| Empty | Scroll row replaced with a single muted line: "New products coming soon" |
-| Error | Muted error line: "Couldn't load products" — section stays in layout |
-| Data | 4 cards, each a `<Link href="/products/[id]">` |
+| Empty   | Scroll row replaced with a single muted line: "New products coming soon"                           |
+| Error   | Muted error line: "Couldn't load products" — section stays in layout                               |
+| Data    | 4 cards, each a `<Link href="/products/[id]">`                                                     |
 
 **Card anatomy (data state):**
+
 - 120px image area: `<Image>` with `mockupImageUrl` if set; placeholder gray box if null
 - Below: `name` (xs, muted) and formatted `price` (sm, bold, primary)
 - Full card is the link — no separate button
@@ -130,14 +109,15 @@ The existing `useProducts()` export is **unchanged**. `/shop`, `/products`, and 
 
 **Render states:**
 
-| State | Output |
-|---|---|
+| State   | Output                                                            |
+| ------- | ----------------------------------------------------------------- |
 | Loading | 6 skeleton cards in `grid-cols-2 md:grid-cols-3`, `animate-pulse` |
-| Empty | "No products yet — check back soon" centered in the grid area |
-| Error | Muted error line: "Couldn't load products" |
-| Data | 6 cards, each a `<Link href="/products/[id]">` |
+| Empty   | "No products yet — check back soon" centered in the grid area     |
+| Error   | Muted error line: "Couldn't load products"                        |
+| Data    | 6 cards, each a `<Link href="/products/[id]">`                    |
 
 **Card anatomy (data state):**
+
 - 100px image area: `<Image>` with `mockupImageUrl` if set; placeholder gray box if null
 - Below: `name` (xs, muted) and formatted `price` (xs, muted)
 - Full card is the link
@@ -164,11 +144,13 @@ import { NewArrivals } from '@/components/home/NewArrivals';
 ### New product form (`admin/products/new/page.tsx`)
 
 Add `featured` state:
+
 ```ts
 const [featured, setFeatured] = useState(false);
 ```
 
 Add checkbox in form, visually grouped with the existing `active` checkbox:
+
 ```tsx
 <input type="checkbox" id="featured" checked={featured}
   onChange={(e) => setFeatured(e.target.checked)} />
@@ -176,6 +158,7 @@ Add checkbox in form, visually grouped with the existing `active` checkbox:
 ```
 
 Write to Firestore on submit:
+
 ```ts
 featured,   // added alongside existing fields
 ```
@@ -183,6 +166,7 @@ featured,   // added alongside existing fields
 ### Edit product form (`admin/products/[productId]/page.tsx`)
 
 Read on load:
+
 ```ts
 setFeatured(data.featured ?? false);
 ```
