@@ -3,11 +3,13 @@ export interface Product {
   name: string;
   description?: string;
   price?: number;
-  base_price?: number; // Legacy field support
+  base_price?: number;
   active?: boolean;
+  featured?: boolean;
   mockupImageUrl?: string | null;
-  mockup_image_url?: string | null; // Legacy field support
-  imageUrl?: string | null; // Legacy field support
-  mockup_base_image?: string | null; // Legacy field support
+  mockup_image_url?: string | null;
+  imageUrl?: string | null;
+  mockup_base_image?: string | null;
   defaultAssetId?: string | null;
+  createdAt?: number;
 }
