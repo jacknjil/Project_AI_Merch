@@ -119,6 +119,42 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── 4. AI STUDIO TEASER ──────────────────────────────── */}
+      <section className="relative overflow-hidden border-y border-accent px-6 py-14">
+        <div className="absolute inset-0 bg-accent/3" />
+        <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 md:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs tracking-[0.3em] text-accent uppercase">Create</p>
+            <h2 className="mb-4 text-2xl font-bold text-primary">AI Studio</h2>
+            <p className="mb-6 text-sm leading-relaxed text-muted">
+              Describe anything — a cyberpunk city at dusk, a wolf in neon rain,
+              an abstract glitch. Watch it appear in seconds, then put it on merch.
+            </p>
+            <Link
+              href="/studio/generate"
+              className="inline-block rounded bg-accent px-6 py-2.5 text-sm font-bold text-black transition-colors hover:opacity-90"
+            >
+              Open Studio →
+            </Link>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-secondary">
+            <div className="border-b border-white/8 px-4 py-3">
+              <p className="text-xs italic text-muted">&ldquo;a neon wolf in cyberpunk rain&rdquo;</p>
+            </div>
+            <div className="flex h-40 items-center justify-center bg-background">
+              <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-3xl text-white/20">
+                ◈
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-white/8 px-4 py-3">
+              <span className="rounded border border-accent px-3 py-1 text-xs text-accent">
+                Apply to Merch →
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }
