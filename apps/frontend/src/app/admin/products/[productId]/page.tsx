@@ -14,6 +14,7 @@ type ProductState = {
   mockupImageUrl: string;
   defaultAssetId: string;
   active: boolean;
+  featured: boolean;
 };
 
 export default function EditProductPage() {
@@ -58,6 +59,7 @@ export default function EditProductPage() {
           mockupImageUrl: data.mockupImageUrl ?? '',
           defaultAssetId: data.defaultAssetId ?? '',
           active: typeof data.active === 'boolean' ? data.active : true,
+          featured: typeof data.featured === 'boolean' ? data.featured : false,
         };
 
         setProduct(state);
@@ -105,6 +107,7 @@ export default function EditProductPage() {
         mockupImageUrl: product.mockupImageUrl.trim() || null,
         defaultAssetId: product.defaultAssetId.trim() || null,
         active: product.active,
+        featured: product.featured,
         updatedAt: serverTimestamp(),
       });
 
@@ -551,6 +554,25 @@ export default function EditProductPage() {
             />
             <label htmlFor="active" style={{ fontSize: '0.9rem' }}>
               Active (show in shop)
+            </label>
+          </div>
+
+          {/* Featured toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <input
+              id="featured"
+              type="checkbox"
+              checked={product.featured}
+              onChange={(e) => handleFieldChange('featured', e.target.checked)}
+            />
+            <label htmlFor="featured" style={{ fontSize: '0.9rem' }}>
+              Featured (show on homepage)
             </label>
           </div>
 
