@@ -91,7 +91,7 @@ export function useRecentProducts(count: number) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (count < 1) return;
+    if (count < 1) { setLoading(false); return; }
     const fetch = async () => {
       try {
         setLoading(true);
