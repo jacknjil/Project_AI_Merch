@@ -73,6 +73,52 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── 3. HOW IT WORKS ──────────────────────────────────── */}
+      <section className="border-t border-white/5 px-6 py-16 text-center">
+        <div className="mx-auto max-w-3xl">
+          <p className="mb-2 text-xs tracking-[0.3em] text-muted uppercase">Process</p>
+          <h2 className="mb-10 text-2xl font-bold text-primary">How It Works</h2>
+          <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+            {[
+              {
+                step: '1',
+                title: 'Generate',
+                desc: 'Type a prompt. DALL-E creates your artwork in seconds.',
+              },
+              { isArrow: true, id: 'arrow-1' },
+              {
+                step: '2',
+                title: 'Apply',
+                desc: 'Place your art on a tee, hoodie, mug, or more.',
+              },
+              { isArrow: true, id: 'arrow-2' },
+              {
+                step: '3',
+                title: 'Buy',
+                desc: 'Checkout and get it delivered. Yours alone.',
+              },
+            ].map((item) => {
+              if (item.isArrow) {
+                return (
+                  <div key={item.id} className="hidden text-2xl text-white/20 md:block">
+                    →
+                  </div>
+                );
+              }
+              return (
+                <div key={item.step} className="rounded-xl border border-white/8 bg-secondary p-6">
+                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-accent text-sm font-bold text-accent">
+                    {item.step}
+                  </div>
+                  <h3 className="mb-2 font-semibold text-primary">{item.title}</h3>
+                  <p className="text-xs leading-relaxed text-muted">{item.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }
