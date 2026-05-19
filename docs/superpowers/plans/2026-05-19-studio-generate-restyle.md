@@ -1,3 +1,88 @@
+# Studio Generate Restyle Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Convert `/studio/generate` from raw inline-style HTML to the dark cyberpunk design system — two-column layout (controls left, results right), Tailwind v4 classes, existing `Button` and `Input` components — without touching any API or state logic.
+
+**Architecture:** Single file conversion (`page.tsx` in-place). A minor update to `Input.tsx` fixes the hardcoded light border so the component works correctly on the dark background. Result cards use a raw `<article>` element (not `Card`) because `Card`'s defaults are light-theme and className can't reliably override them in Tailwind v4.
+
+**Tech Stack:** Next.js 16 App Router, React 19, Tailwind CSS v4, TypeScript 5. All commands run from `apps/frontend/`.
+
+---
+
+## File Map
+
+| File | Action | What changes |
+|---|---|---|
+| `src/components/ui/Input.tsx` | Modify | `border-gray-200` → `border-white/20` (line 19) |
+| `src/app/studio/generate/page.tsx` | Modify | Full restyle — all inline styles replaced with Tailwind classes |
+
+No new files. No API routes touched. No state logic changed.
+
+---
+
+## CSS Variables Reference
+
+Defined in `src/app/globals.css`:
+
+```
+--color-background: #0a0a0a   → bg-background, text-background
+--color-primary:    #f0f0f0   → bg-primary, text-primary
+--color-secondary:  #111111   → bg-secondary, text-secondary
+--color-accent:     #00FF41   → bg-accent, text-accent (neon green)
+--color-muted:      #9ca3af   → bg-muted, text-muted
+```
+
+The app Header is `sticky top-0 h-16` (64px = 4rem). The left panel uses `lg:top-16` to stick below it.
+
+---
+
+## Task 1: Fix Input Component Border for Dark Theme
+
+**Files:**
+- Modify: `src/components/ui/Input.tsx:19`
+
+The `Input` component hardcodes `border-gray-200` (light gray). Since the app forces dark mode globally, update the default to `border-white/20` so `Input` works correctly everywhere without needing per-use overrides.
+
+- [ ] **Step 1: Open the file and make the change**
+
+In `src/components/ui/Input.tsx`, find line 19. Change only the border class:
+
+```tsx
+// Before
+className={`flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+
+// After
+className={`flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+```
+
+- [ ] **Step 2: Run lint**
+
+```bash
+npm run lint
+```
+
+Expected: no errors or warnings related to `Input.tsx`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/components/ui/Input.tsx
+git commit -m "fix: update Input border to dark theme (border-white/20)"
+```
+
+---
+
+## Task 2: Restyle /studio/generate Page
+
+**Files:**
+- Modify: `src/app/studio/generate/page.tsx`
+
+Replace all inline styles with Tailwind classes. Keep all state, all handlers, and all API logic byte-for-byte identical. The only changes are in the JSX return and the import list.
+
+- [ ] **Step 1: Replace the full file contents**
+
+```tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -158,7 +243,6 @@ export default function GenerateAssetPage() {
             <Button
               onClick={handleGenerate}
               disabled={loading}
-              variant="primary"
               className="w-full"
               size="lg"
             >
@@ -233,3 +317,85 @@ export default function GenerateAssetPage() {
     </div>
   );
 }
+```
+
+- [ ] **Step 2: Run lint**
+
+```bash
+npm run lint
+```
+
+Expected: no errors. The `@typescript-eslint/no-explicit-any` suppression comments from the old file are removed — the new version uses `err: unknown` with a proper type guard, which is cleaner.
+
+- [ ] **Step 3: Run TypeScript check**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: no type errors.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/app/studio/generate/page.tsx
+git commit -m "feat: restyle /studio/generate with dark cyberpunk theme and two-column layout"
+```
+
+---
+
+## Task 3: Verification
+
+**Files:** none modified
+
+- [ ] **Step 1: Start the dev server**
+
+```bash
+npm run dev
+```
+
+Expected: server starts at `http://localhost:3000` with no compilation errors.
+
+- [ ] **Step 2: Visual check — empty state**
+
+Open `http://localhost:3000/studio/generate`.
+
+Verify:
+- Page header shows "AI Studio" label (accent green) + "Generate" h1 (white)
+- Left panel is visible with all 5 controls (Title, Niche, Template, Count, Prompt)
+- "Generate" tab underlined in green
+- Right panel shows the sparkle empty state ("Your designs will appear here")
+- On a narrow viewport (< 1024px), the layout stacks vertically
+
+- [ ] **Step 3: Visual check — results grid**
+
+Fill in the Prompt field with any text (e.g. "a glowing fox") and click Generate.
+
+> **Note:** This will call the real OpenAI API if `OPENAI_API_KEY` is set in `.env.local`. If not configured, the API will error — that is expected and acceptable for this visual check. The error message should appear in red below the Generate button (not a white flash or broken layout).
+
+If the API is configured and generation succeeds, verify:
+- Results appear in the right panel (no layout shift)
+- Each card shows the image (1:1 aspect), title, niche tag
+- "Saved ✓" badge appears in the top-right of each image
+- Grid is 2-column, expanding to 3-column at xl width
+
+- [ ] **Step 4: Production build**
+
+Stop the dev server and run:
+
+```bash
+npm run build
+```
+
+Expected: build completes successfully, `Route /studio/generate` appears in output with no errors.
+
+- [ ] **Step 5: Final commit (if any fixes were needed)**
+
+If step 2, 3, or 4 required fixes, commit them:
+
+```bash
+git add src/app/studio/generate/page.tsx src/components/ui/Input.tsx
+git commit -m "fix: studio generate restyle visual corrections"
+```
+
+If no fixes were needed, skip this step.
