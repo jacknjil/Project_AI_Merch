@@ -19,6 +19,7 @@ export default function NewProductPage() {
   const [mockupImageUrl, setMockupImageUrl] = useState('');
   const [defaultAssetId, setDefaultAssetId] = useState('');
   const [active, setActive] = useState(true);
+  const [featured, setFeatured] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export default function NewProductPage() {
         mockupImageUrl: mockupImageUrl.trim() || null,
         defaultAssetId: defaultAssetId.trim() || null,
         active,
+        featured,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -421,6 +423,25 @@ export default function NewProductPage() {
             />
             <label htmlFor="active" style={{ fontSize: '0.9rem' }}>
               Active (show in shop)
+            </label>
+          </div>
+
+          {/* Featured toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <input
+              id="featured"
+              type="checkbox"
+              checked={featured}
+              onChange={(e) => setFeatured(e.target.checked)}
+            />
+            <label htmlFor="featured" style={{ fontSize: '0.9rem' }}>
+              Featured (show on homepage)
             </label>
           </div>
 
