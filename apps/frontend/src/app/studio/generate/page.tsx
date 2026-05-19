@@ -158,6 +158,7 @@ export default function GenerateAssetPage() {
             <Button
               onClick={handleGenerate}
               disabled={loading}
+              variant="primary"
               className="w-full"
               size="lg"
             >
