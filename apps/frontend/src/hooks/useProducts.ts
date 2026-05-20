@@ -1,7 +1,30 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  doc,
+  getDoc,
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Product } from '@/lib/types';
+
+export async function getProduct(id: string): Promise<Product | null> {
+  try {
+    const docRef = doc(db, 'products', id);
+    const snapshot = await getDoc(docRef);
+    if (snapshot.exists()) {
+      return { id: snapshot.id, ...snapshot.data() } as Product;
+    }
+    return null;
+  } catch (err) {
+    console.error('Error fetching product:', err);
+    return null;
+  }
+}
 
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -15,42 +38,21 @@ export function useProducts() {
   async function fetchProducts() {
     try {
       setLoading(true);
-      // Fallback: if 'active' index is missing, we might need to remove the where clause or create index
-      // For now, let's try a simple fetch everything to avoid index errors during dev
       const productsCol = collection(db, 'products');
       const q = query(productsCol, orderBy('name', 'asc'));
-      
       const snapshot = await getDocs(q);
-      const items = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data
-        } as Product;
-      });
-      
+      const items = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Product[];
       setProducts(items);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching products:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Failed to load products');
     } finally {
       setLoading(false);
     }
   }
-
-  const getProduct = async (id: string): Promise<Product | null> => {
-    try {
-      const docRef = doc(db, 'products', id);
-      const snapshot = await getDoc(docRef);
-      if (snapshot.exists()) {
-        return { id: snapshot.id, ...snapshot.data() } as Product;
-      }
-      return null;
-    } catch (err) {
-      console.error('Error fetching product:', err);
-      return null;
-    }
-  };
 
   return { products, loading, error, refresh: fetchProducts, getProduct };
 }
@@ -72,9 +74,16 @@ export function useFeaturedProducts() {
           limit(4),
         );
         const snap = await getDocs(q);
-        setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product)));
+        setProducts(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product),
+        );
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to load featured products');
+        console.error('[useFeaturedProducts]', err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to load featured products',
+        );
       } finally {
         setLoading(false);
       }
@@ -91,7 +100,10 @@ export function useRecentProducts(count: number) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (count < 1) { setLoading(false); return; }
+    if (count < 1) {
+      setLoading(false);
+      return;
+    }
     const fetch = async () => {
       try {
         setLoading(true);
@@ -102,9 +114,14 @@ export function useRecentProducts(count: number) {
           limit(count),
         );
         const snap = await getDocs(q);
-        setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product)));
+        setProducts(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product),
+        );
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to load recent products');
+        console.error('[useRecentProducts]', err);
+        setError(
+          err instanceof Error ? err.message : 'Failed to load recent products',
+        );
       } finally {
         setLoading(false);
       }
