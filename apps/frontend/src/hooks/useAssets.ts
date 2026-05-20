@@ -15,7 +15,7 @@ export function useAssets(count = 20) {
         const q = query(
           collection(db, 'assets'),
           orderBy('createdAt', 'desc'),
-          limit(count * 2), // fetch extra to account for hidden assets
+          limit(count * 5), // fetch extra: if >50% hidden, count*2 silently under-delivers
         );
         const snap = await getDocs(q);
         const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Asset);

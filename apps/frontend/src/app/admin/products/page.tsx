@@ -284,20 +284,6 @@ export default function AdminProductsPage() {
                     >
                       id: <code>{p.id}</code>
                     </p>
-
-                    {/* Debug: show what URL we're using */}
-                    <p
-                      style={{
-                        margin: 0,
-                        marginTop: 4,
-                        fontSize: '0.7rem',
-                        color: '#6b7280',
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      mockupImageUrl:{' '}
-                      <code>{p.mockupImageUrl ?? '(none)'}</code>
-                    </p>
                   </div>
 
                   {/* View in shop */}
