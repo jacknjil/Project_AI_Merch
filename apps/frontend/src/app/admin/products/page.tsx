@@ -102,20 +102,36 @@ export default function AdminProductsPage() {
             </p>
           </div>
 
-          <Link
-            href="/admin/products/new"
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid #10b981',
-              background: '#022c22',
-              color: '#a7f3d0',
-              fontSize: '0.85rem',
-              textDecoration: 'none',
-            }}
-          >
-            + New product
-          </Link>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Link
+              href="/admin/assets"
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid #4b5563',
+                background: '#111827',
+                color: '#e5e7eb',
+                fontSize: '0.85rem',
+                textDecoration: 'none',
+              }}
+            >
+              Assets →
+            </Link>
+            <Link
+              href="/admin/products/new"
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid #10b981',
+                background: '#022c22',
+                color: '#a7f3d0',
+                fontSize: '0.85rem',
+                textDecoration: 'none',
+              }}
+            >
+              + New product
+            </Link>
+          </div>
         </header>
 
         {/* Loading / error states */}
