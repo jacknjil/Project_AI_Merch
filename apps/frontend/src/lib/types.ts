@@ -13,3 +13,14 @@ export interface Product {
   defaultAssetId?: string | null;
   createdAt?: number;
 }
+
+export interface Asset {
+  id: string;
+  title: string;
+  niche?: string;
+  imageUrl: string;
+  thumbUrl?: string;
+  prompt?: string;
+  source?: string;
+  createdAt?: number;
+}
