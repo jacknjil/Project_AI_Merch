@@ -20,11 +20,13 @@ function ApplyContent() {
 
   useEffect(() => {
     if (!assetId) {
+      setAssetLoading(false);
       router.replace('/studio/gallery');
       return;
     }
     getAsset(assetId).then((a) => {
       if (!a) {
+        setAssetLoading(false);
         router.replace('/studio/gallery');
         return;
       }
