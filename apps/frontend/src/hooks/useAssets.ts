@@ -15,10 +15,11 @@ export function useAssets(count = 20) {
         const q = query(
           collection(db, 'assets'),
           orderBy('createdAt', 'desc'),
-          limit(count),
+          limit(count * 2), // fetch extra to account for hidden assets
         );
         const snap = await getDocs(q);
-        setAssets(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Asset));
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Asset);
+        setAssets(all.filter((a) => a.published !== false).slice(0, count));
       } catch (err: unknown) {
         console.error('[useAssets]', err);
         setError(err instanceof Error ? err.message : 'Failed to load assets');
