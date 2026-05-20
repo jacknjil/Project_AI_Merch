@@ -151,7 +151,7 @@ export default function ProductDetailPage({
 
               {product.defaultAssetId ? (
                 <Link
-                  href={`/studio?productId=${product.id}&assetId=${product.defaultAssetId}`}
+                  href={`/studio/compose?assetId=${product.defaultAssetId}&productId=${product.id}`}
                   className="flex-1"
                 >
                   <Button

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { PROMPT_TEMPLATES } from '@/lib/promptTemplates';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -222,6 +223,12 @@ export default function GenerateAssetPage() {
                       {asset.niche && (
                         <p className="mt-0.5 text-xs text-muted">{asset.niche}</p>
                       )}
+                      <Link
+                        href={`/studio/apply?assetId=${asset.id}`}
+                        className="mt-2 block w-full rounded-md bg-accent/10 px-3 py-1.5 text-center text-xs font-semibold text-accent hover:bg-accent/20 transition-colors"
+                      >
+                        Apply to Product →
+                      </Link>
                     </div>
                   </article>
                 ))}
