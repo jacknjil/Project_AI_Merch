@@ -23,4 +23,5 @@ export interface Asset {
   prompt?: string;
   source?: string;
   createdAt?: number;
+  published?: boolean; // false = hidden in gallery; undefined or true = visible
 }
