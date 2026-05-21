@@ -118,7 +118,7 @@ A self-hosted n8n instance at `https://n8n.jjrsguide.com` handles batch asset ge
 
 - **Credential ID:** `3eB88qFdgc8kvhY7` (OAuth2)
 - **Products sheet:** `1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM` — "AI Merch - Asset Generation System"
-- **Config sheet:** `1ZidOVGY51tdoQeYCZljktjkSqni1eJA-lia39ccDa7o` — Config tab (gid=1922474013), key=`daily`
+- **Config sheet:** `1dzzB1dxqgbhijD9hcDFioZHGzUn6BQaU79NNKmr_NkU` — "AI Merch - Config", Sheet1 (gid=1495447911), key=`daily`
 - Product columns: `id`, `rowId`, `title`, `niche`, `concept`, `styleTag`, `colorPalette`, `product_category`, `size`, `priority`, `live-mode`, `n8n_status`, `n8n_error`, `assetIds`, `imageUrl`, `firebaseProductId`, `published`, `lastRun`, `retryCount`, `notes`
 - `n8n_status` drives the queue: blank/`todo`/`rate_limited` = eligible; `done`/`pending`/`error` = skipped
 
