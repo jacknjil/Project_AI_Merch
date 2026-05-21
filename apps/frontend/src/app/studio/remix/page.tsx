@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -16,7 +16,7 @@ type GeneratedAsset = {
   imageUrl: string;
 };
 
-export default function RemixPage() {
+function RemixContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const assetId = searchParams.get('assetId');
@@ -36,6 +36,7 @@ export default function RemixPage() {
 
   useEffect(() => {
     if (!assetId) {
+      setLoadingSource(false);
       router.replace('/studio/gallery');
       return;
     }
@@ -258,5 +259,19 @@ export default function RemixPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function RemixPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-1 items-center justify-center">
+          <p className="animate-pulse text-sm text-muted">Loading…</p>
+        </div>
+      }
+    >
+      <RemixContent />
+    </Suspense>
   );
 }
