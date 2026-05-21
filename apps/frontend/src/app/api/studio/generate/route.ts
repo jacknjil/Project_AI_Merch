@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Daily cap
-    const DAILY_CAP = Number(process.env.DAILY_CAP ?? 10);
+    const DAILY_CAP = Number(process.env.DAILY_CAP ?? 15);
     const dayKey = nyDayKey();
     const capRef = adminDb.collection('rate_limits').doc('daily').collection('days').doc(dayKey);
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       const used = snap.exists ? Number(snap.data()?.used ?? 0) : 0;
       if (used + count > DAILY_CAP) throw new RateLimitError('Daily limit reached', used, DAILY_CAP);
       if (!snap.exists) {
-        tx.set(capRef, { day: dayKey, used: count, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+        tx.set(capRef, { day: dayKey, tz: 'America/Los_Angeles', used: count, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       } else {
         tx.update(capRef, { used: FieldValue.increment(count), updatedAt: FieldValue.serverTimestamp() });
       }
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       }
       if (!png) continue;
 
-      const storagePath = `assets/studio-${Date.now()}-${i + 1}.png`;
+      const storagePath = `assets/studio-${randomUUID()}-${i + 1}.png`;
       const imageUrl = await uploadPngAndGetUrl(storagePath, png);
 
       const assetDoc = await adminDb.collection('assets').add({
