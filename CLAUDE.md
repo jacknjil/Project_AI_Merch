@@ -107,17 +107,20 @@ A self-hosted n8n instance at `https://n8n.jjrsguide.com` handles batch asset ge
 - **Flow summary:**
   1. Reads a config row from Google Sheets (daily quota, date)
   2. Reads product rows from the sheet (columns: id, concept/prompt, n8n_status, live-mode, etc.)
-  3. **Queue Filter** — validates each row; only passes rows where `n8n_status` is blank / `todo` / `rate_limited`. Currently hardcoded to process **index 0 only** (one row per run — batch processing intentionally disabled while testing).
-  4. GPT-4.1-mini builds a refined prompt from the concept field
-  5. **If1 node** gates routing: `live-mode === false` OR `queue_ok === false` → dry-run path; otherwise → Generate assets
-  6. **Generate assets** — POSTs to `https://ai-merch.jjrsguide.com/api/n8n/create-asset` with header `x-n8n-secret`
-  7. Updates the sheet row status and increments the daily config counter
+  3. **Queue Filter** — validates each row; adds `queue_ok` flag based on `n8n_status` (blank/`todo`/`rate_limited` = eligible).
+  4. **Eligible Filter** — passes only rows where `queue_ok === true` to OpenAI and the Merge node, skipping done/error rows without burning API calls.
+  5. GPT-4.1-mini builds a refined prompt from the `concept` field
+  6. **If1 node** gates routing: `live-mode === false` OR `queue_ok === false` → dry-run path; otherwise → Generate assets
+  7. **Generate assets** — POSTs to `https://ai-merch.jjrsguide.com/api/n8n/create-asset` with header `x-n8n-secret`
+  8. Updates the sheet row status and increments the daily config counter
 
 ### Google Sheets Integration
 
 - **Credential ID:** `3eB88qFdgc8kvhY7` (OAuth2)
-- Sheet has two ranges: a config row (key=`daily`, tracks date + `imagesGeneratedToday`) and product rows
-- `n8n_status` column drives the queue: blank/`todo`/`rate_limited` = eligible; `done`/`pending`/`error` = skipped
+- **Products sheet:** `1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM` — "AI Merch - Asset Generation System"
+- **Config sheet:** `1ZidOVGY51tdoQeYCZljktjkSqni1eJA-lia39ccDa7o` — Config tab (gid=1922474013), key=`daily`
+- Product columns: `id`, `rowId`, `title`, `niche`, `concept`, `styleTag`, `colorPalette`, `product_category`, `size`, `priority`, `live-mode`, `n8n_status`, `n8n_error`, `assetIds`, `imageUrl`, `firebaseProductId`, `published`, `lastRun`, `retryCount`, `notes`
+- `n8n_status` drives the queue: blank/`todo`/`rate_limited` = eligible; `done`/`pending`/`error` = skipped
 
 ### AI-Merch API
 
@@ -146,6 +149,5 @@ n8n REST API v1 — `PUT /api/v1/workflows/:id` accepts only: `name, nodes, conn
 
 | #   | Issue                                             | Notes                                                                                                             |
 | --- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 3   | Queue Filter passes index 0 only — batch disabled | Intentional safety limit during testing; remove the `if (index > 0)` guard when ready for production batch runs   |
 | 5   | Start/Stop GCP nodes orphaned                     | Disconnected nodes, no current purpose — review before activating scheduled runs                                  |
 | 6   | Switch node routes all product types to same path | Product-type-specific routing (mug vs shirt vs etc.) is wired but non-functional; all outputs go to the same node |
