@@ -96,17 +96,30 @@ export default function GalleryPage() {
               ))}
             </div>
 
-            <Button
-              variant="primary"
-              size="lg"
-              disabled={!selected}
-              onClick={() =>
-                selected && router.push(`/studio/apply?assetId=${selected.id}`)
-              }
-              className="w-full"
-            >
-              Use This Art →
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                variant="primary"
+                size="lg"
+                disabled={!selected}
+                onClick={() =>
+                  selected && router.push(`/studio/apply?assetId=${selected.id}`)
+                }
+                className="flex-1"
+              >
+                Use This Art →
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={!selected}
+                onClick={() =>
+                  selected && router.push(`/studio/remix?assetId=${selected.id}`)
+                }
+                className="flex-1"
+              >
+                Remix Prompt →
+              </Button>
+            </div>
           </>
         )}
       </div>
