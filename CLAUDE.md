@@ -93,3 +93,59 @@ Config: `apps/frontend/apphosting.yaml` (service: `ai-merch-store`, region: `us-
 - **Hydration suppression:** `suppressHydrationWarning` on `<body>` in `layout.tsx` is intentional — browser extensions cause mismatches.
 - **Stripe webhooks:** Raw body required for signature verification — don't add body parsers to the webhook route.
 - **Canvas/Konva:** `react-konva` requires client-only rendering; use dynamic imports with `ssr: false` for any Konva components.
+
+## n8n Automation Layer
+
+### Overview
+
+A self-hosted n8n instance at `https://n8n.jjrsguide.com` handles batch asset generation. It reads pending rows from a Google Sheet, calls GPT-4.1-mini to build prompts, then POSTs to the app's `/api/n8n/create-asset` endpoint to generate and persist DALL-E assets. This offloads bulk generation from the frontend so users don't trigger it directly.
+
+### Key Workflow: AI_Merch - Batch from Sheet
+
+- **Workflow ID:** `HlxK50rV54KSiNRD`
+- **Trigger:** Manual (UI) or scheduled
+- **Flow summary:**
+  1. Reads a config row from Google Sheets (daily quota, date)
+  2. Reads product rows from the sheet (columns: id, concept/prompt, n8n_status, live-mode, etc.)
+  3. **Queue Filter** — validates each row; only passes rows where `n8n_status` is blank / `todo` / `rate_limited`. Currently hardcoded to process **index 0 only** (one row per run — batch processing intentionally disabled while testing).
+  4. GPT-4.1-mini builds a refined prompt from the concept field
+  5. **If1 node** gates routing: `live-mode === false` OR `queue_ok === false` → dry-run path; otherwise → Generate assets
+  6. **Generate assets** — POSTs to `https://ai-merch.jjrsguide.com/api/n8n/create-asset` with header `x-n8n-secret`
+  7. Updates the sheet row status and increments the daily config counter
+
+### Google Sheets Integration
+
+- **Credential ID:** `3eB88qFdgc8kvhY7` (OAuth2)
+- Sheet has two ranges: a config row (key=`daily`, tracks date + `imagesGeneratedToday`) and product rows
+- `n8n_status` column drives the queue: blank/`todo`/`rate_limited` = eligible; `done`/`pending`/`error` = skipped
+
+### AI-Merch API
+
+- **Endpoint:** `https://ai-merch.jjrsguide.com/api/n8n/create-asset`
+- **Auth header:** `x-n8n-secret: rmPIzCVTTYukUUgZa3w06HZZ`
+- Corresponds to `src/app/api/n8n/create-asset/` in this repo — this is the server-side handler that receives the n8n POST and triggers DALL-E generation + Firebase persistence
+
+### MCP Server (Claude ↔ n8n)
+
+A custom MCP server at `/home/ibjjr/.claude/n8n_mcp.py` lets Claude interact with n8n directly via tools: `list_workflows`, `get_workflow`, `update_workflow`, `create_workflow`, `activate_workflow`, `deactivate_workflow`, `delete_workflow`, `get_executions`.
+
+Requires env vars:
+
+```text
+N8N_BASE_URL=https://n8n.jjrsguide.com
+N8N_API_KEY=<JWT from ~/.bashrc>
+```
+
+n8n REST API v1 — `PUT /api/v1/workflows/:id` accepts only: `name, nodes, connections, settings, staticData`. Strip all metadata fields before updating.
+
+### OpenAI Credential
+
+- **Credential ID:** `exk4Ofy7yL07H7ei` (GPT-4.1-mini, used in "Message a model1" node)
+
+### Known Open Issues
+
+| #   | Issue                                             | Notes                                                                                                             |
+| --- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 3   | Queue Filter passes index 0 only — batch disabled | Intentional safety limit during testing; remove the `if (index > 0)` guard when ready for production batch runs   |
+| 5   | Start/Stop GCP nodes orphaned                     | Disconnected nodes, no current purpose — review before activating scheduled runs                                  |
+| 6   | Switch node routes all product types to same path | Product-type-specific routing (mug vs shirt vs etc.) is wired but non-functional; all outputs go to the same node |

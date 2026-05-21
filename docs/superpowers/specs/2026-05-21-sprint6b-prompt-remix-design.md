@@ -18,7 +18,7 @@ The gallery page (`/studio/gallery`) gains a second action button alongside the 
 
 **Button layout (below asset grid, full width):**
 
-```
+```text
 [ Use This Art →  ]  [ Remix Prompt → ]
 ```
 
@@ -41,6 +41,7 @@ The gallery page (`/studio/gallery`) gains a second action button alongside the 
 Two-column layout matching `/studio/generate`:
 
 **Left panel** (`w-96`, sticky, scrollable):
+
 - Page header: `AI Studio` eyebrow label + `Remix` heading
 - Source asset thumbnail — square image of the original asset with its title beneath it, separated by a subtle `border-white/10` divider
 - Pre-filled editable fields (all editable):
@@ -52,12 +53,14 @@ Two-column layout matching `/studio/generate`:
 - Error message slot below button
 
 **Right panel** (`flex-1`):
+
 - Empty state on load: sparkle icon + "Your remixed designs will appear here" + supporting copy
 - After generation: same card grid as `/studio/generate` — image with "Saved ✓" badge, title, niche, "Apply to Product →" link per card
 
 ### Data Loading
 
 On mount, the page:
+
 1. Reads `assetId` from `useSearchParams()`
 2. Calls `getAsset(assetId)` (already exported from `src/hooks/useAssets.ts`)
 3. Pre-fills: `title`, `niche`, `prompt` from the returned asset
@@ -70,6 +73,7 @@ On mount, the page:
 ### Generation
 
 On "Generate Remix":
+
 - POSTs to `/api/generate-asset` with `{ prompt, title, niche, count }`
 - Same request/response shape as the generate page
 - Results render in the right panel in-place (replaces empty state)
@@ -82,6 +86,7 @@ On "Generate Remix":
 ## Styling
 
 Follows existing dark theme conventions throughout:
+
 - Borders: `border-white/5`, `border-white/10`
 - Text: `text-primary`, `text-muted`, `text-accent`
 - Backgrounds: `bg-secondary`, `bg-background`
@@ -92,10 +97,10 @@ Follows existing dark theme conventions throughout:
 
 ## Files Changed
 
-| File | Change |
-|---|---|
+| File                              | Change                                                 |
+| --------------------------------- | ------------------------------------------------------ |
 | `src/app/studio/gallery/page.tsx` | Add "Remix Prompt →" button alongside "Use This Art →" |
-| `src/app/studio/remix/page.tsx` | New page — self-contained remix flow |
+| `src/app/studio/remix/page.tsx`   | New page — self-contained remix flow                   |
 
 **No changes to:** API routes, `types.ts`, `useAssets.ts`, or any other existing files.
 

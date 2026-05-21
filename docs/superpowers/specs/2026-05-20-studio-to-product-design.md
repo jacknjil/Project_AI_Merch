@@ -28,28 +28,32 @@ Three new routes, one linear pipeline. All state is carried in URL params — br
 
 ### New Routes
 
-| Route | Purpose |
-|---|---|
-| `/studio/gallery` | Browse published assets + "Generate New" CTA |
-| `/studio/apply?assetId=X` | Pick a product to apply the selected asset to |
+| Route                                   | Purpose                                               |
+| --------------------------------------- | ----------------------------------------------------- |
+| `/studio/gallery`                       | Browse published assets + "Generate New" CTA          |
+| `/studio/apply?assetId=X`               | Pick a product to apply the selected asset to         |
 | `/studio/compose?assetId=X&productId=Y` | Konva canvas — position art, save mockup, add to cart |
 
 ### Entry Points
 
 **Browse-first (new customer path):**
-```
+
+```text
 /studio/gallery → /studio/apply?assetId=X → /studio/compose?assetId=X&productId=Y → /cart
 ```
 
 **Generate-first (existing studio user):**
-```
+
+```text
 /studio/generate → [result card "Apply to Product →"] → /studio/apply?assetId=X → ...
 ```
 
 **Product-first (from product detail page):**
-```
+
+```text
 /products/[productId] → "Customize with AI" → /studio/compose?assetId=[defaultAssetId]&productId=Y
 ```
+
 Skips gallery and apply entirely — lands directly on canvas.
 
 ---
@@ -119,15 +123,17 @@ export interface Asset {
 Client-only Konva component. Always consumed via `dynamic(() => import(...), { ssr: false })`.
 
 **Props:**
+
 ```ts
 interface KonvaComposerProps {
-  assetUrl: string;         // DALL-E generated image URL
+  assetUrl: string; // DALL-E generated image URL
   productMockupUrl: string; // product base image (blank product, no art)
   stageRef: RefObject<Konva.Stage>;
 }
 ```
 
 **Implementation:**
+
 - `Stage` sized at 600×600px internally, CSS-scaled to fit screen width
 - Layer 1 (background): `Image` node loaded from `productMockupUrl` — `listening={false}`, fills the stage
 - Layer 2 (foreground): `Image` node loaded from `assetUrl` — draggable, centered on first render at ~40% of stage size
@@ -156,11 +162,11 @@ If `product.defaultAssetId` is null, the button remains disabled ("Customization
 
 ### Firestore collections used
 
-| Collection | Used by | Query |
-|---|---|---|
-| `assets` | gallery, apply, compose | `orderBy createdAt desc`, single doc fetch by ID |
-| `products` | apply, compose | `useProducts()` (existing), `getProduct(id)` (existing) |
-| `mockups` | compose (write) | `/api/save-mockup` writes here — no new client query |
+| Collection | Used by                 | Query                                                   |
+| ---------- | ----------------------- | ------------------------------------------------------- |
+| `assets`   | gallery, apply, compose | `orderBy createdAt desc`, single doc fetch by ID        |
+| `products` | apply, compose          | `useProducts()` (existing), `getProduct(id)` (existing) |
+| `mockups`  | compose (write)         | `/api/save-mockup` writes here — no new client query    |
 
 ### No new Firestore indexes required
 
@@ -174,8 +180,9 @@ If `product.defaultAssetId` is null, the button remains disabled ("Customization
 `CartContext` already supports `assetId` on `CartItem` and per-variant deduplication. No changes needed.
 
 The compose page passes a modified product object to `addItem`:
+
 ```ts
-addItem({ ...product, mockupImageUrl: savedMockupUrl }, 1, assetId)
+addItem({ ...product, mockupImageUrl: savedMockupUrl }, 1, assetId);
 ```
 
 The cart displays `mockupImageUrl` as the item image — customers see their custom design in the cart.
@@ -184,14 +191,14 @@ The cart displays `mockupImageUrl` as the item image — customers see their cus
 
 ## Error Handling
 
-| Scenario | Behavior |
-|---|---|
-| `assetId` missing from URL on `/studio/apply` | Redirect to `/studio/gallery` |
-| `assetId` or `productId` missing on `/studio/compose` | Redirect to `/studio/gallery` |
-| Asset or product not found in Firestore | Show "Not found" with back link |
-| `/api/save-mockup` fails | Show error toast, keep canvas interactive, re-enable button |
-| Product has no `mockup_base_image` | Show plain dark background on canvas (no crash) |
-| KonvaComposer image load fails | Show placeholder rectangle in place of broken image |
+| Scenario                                              | Behavior                                                    |
+| ----------------------------------------------------- | ----------------------------------------------------------- |
+| `assetId` missing from URL on `/studio/apply`         | Redirect to `/studio/gallery`                               |
+| `assetId` or `productId` missing on `/studio/compose` | Redirect to `/studio/gallery`                               |
+| Asset or product not found in Firestore               | Show "Not found" with back link                             |
+| `/api/save-mockup` fails                              | Show error toast, keep canvas interactive, re-enable button |
+| Product has no `mockup_base_image`                    | Show plain dark background on canvas (no crash)             |
+| KonvaComposer image load fails                        | Show placeholder rectangle in place of broken image         |
 
 ---
 
