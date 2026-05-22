@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore';
+import FilterBar from '@/components/FilterBar';
 
 type Asset = {
   id: string;
@@ -12,15 +13,16 @@ type Asset = {
   imageUrl?: string;
   thumbUrl?: string;
   niche?: string;
+  style?: string;
   source?: string;
   createdAt?: Date;
-  published?: boolean; // optional future use
+  published?: boolean;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function coerceDate(v: any): Date | undefined {
   if (!v) return undefined;
-  if (typeof v?.toDate === 'function') return v.toDate(); // Firestore Timestamp
+  if (typeof v?.toDate === 'function') return v.toDate();
   if (v instanceof Date) return v;
   if (typeof v === 'number' || typeof v === 'string') {
     const d = new Date(v);
@@ -32,6 +34,8 @@ function coerceDate(v: any): Date | undefined {
 export default function GalleryPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeNiche, setActiveNiche] = useState<string | null>(null);
+  const [activeStyle, setActiveStyle] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +44,6 @@ export default function GalleryPage() {
       try {
         const q = query(
           collection(db, 'assets'),
-          // In early stages, keep the gallery lightweight.
           orderBy('createdAt', 'desc'),
           limit(60)
         );
@@ -51,12 +54,13 @@ export default function GalleryPage() {
         const items = snap.docs.map((d) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const data: any = d.data() || {};
-          const createdAt = coerceDate(data.createdAt ?? data.created_at); // back-compat
+          const createdAt = coerceDate(data.createdAt ?? data.created_at);
 
           return {
             id: d.id,
             title: data.title ?? '',
             niche: data.niche ?? '',
+            style: data.style ?? '',
             imageUrl: data.imageUrl ?? '',
             thumbUrl: data.thumbUrl ?? data.imageUrl ?? '',
             source: data.source ?? '',
@@ -84,6 +88,24 @@ export default function GalleryPage() {
     return Array.from(set).sort();
   }, [assets]);
 
+  const styles = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of assets) if (a.style) set.add(a.style);
+    return Array.from(set).sort();
+  }, [assets]);
+
+  const filtered = useMemo(() => {
+    let result = assets;
+    if (activeNiche) result = result.filter((a) => a.niche === activeNiche);
+    if (activeStyle) result = result.filter((a) => a.style === activeStyle);
+    return result;
+  }, [assets, activeNiche, activeStyle]);
+
+  function handleFilterChange(key: 'niche' | 'style', value: string | null) {
+    if (key === 'niche') setActiveNiche(value);
+    else setActiveStyle(value);
+  }
+
   return (
     <main style={{ padding: 24 }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
@@ -101,30 +123,17 @@ export default function GalleryPage() {
 
       {!loading && assets.length > 0 && (
         <>
-          {niches.length > 0 && (
-            <div
-              style={{
-                marginBottom: 16,
-                display: 'flex',
-                gap: 8,
-                flexWrap: 'wrap',
-              }}
-            >
-              {niches.map((n) => (
-                <span
-                  key={n}
-                  style={{
-                    fontSize: 12,
-                    padding: '4px 10px',
-                    borderRadius: 999,
-                    background: '#f3f4f6',
-                    color: '#111827',
-                  }}
-                >
-                  {n}
-                </span>
-              ))}
-            </div>
+          <FilterBar
+            filters={[
+              { key: 'niche', label: 'Niche', values: niches },
+              { key: 'style', label: 'Style', values: styles },
+            ]}
+            active={{ niche: activeNiche, style: activeStyle }}
+            onChange={handleFilterChange}
+          />
+
+          {filtered.length === 0 && (
+            <p style={{ color: '#6b7280' }}>No assets match the selected filters.</p>
           )}
 
           <div
@@ -134,7 +143,7 @@ export default function GalleryPage() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
             }}
           >
-            {assets.map((asset) => {
+            {filtered.map((asset) => {
               const src = asset.thumbUrl || asset.imageUrl || '/mock.png';
               return (
                 <Link
