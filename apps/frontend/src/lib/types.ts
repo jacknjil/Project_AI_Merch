@@ -11,6 +11,8 @@ export interface Product {
   imageUrl?: string | null;
   mockup_base_image?: string | null;
   defaultAssetId?: string | null;
+  niche?: string;
+  style?: string;
   createdAt?: number;
 }
 
@@ -18,10 +20,11 @@ export interface Asset {
   id: string;
   title: string;
   niche?: string;
+  style?: string;
   imageUrl: string;
   thumbUrl?: string;
   prompt?: string;
   source?: string;
   createdAt?: number;
-  published?: boolean; // false = hidden in gallery; undefined or true = visible
+  published?: boolean;
 }
