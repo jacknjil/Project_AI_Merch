@@ -13,6 +13,8 @@ type ProductState = {
   priceInput: string;
   mockupImageUrl: string;
   defaultAssetId: string;
+  niche: string;
+  style: string;
   active: boolean;
   featured: boolean;
 };
@@ -58,6 +60,8 @@ export default function EditProductPage() {
           priceInput: typeof data.price === 'number' ? String(data.price) : '',
           mockupImageUrl: data.mockupImageUrl ?? '',
           defaultAssetId: data.defaultAssetId ?? '',
+          niche: data.niche ?? '',
+          style: data.style ?? '',
           active: typeof data.active === 'boolean' ? data.active : true,
           featured: typeof data.featured === 'boolean' ? data.featured : false,
         };
@@ -106,6 +110,8 @@ export default function EditProductPage() {
         price: priceNumber,
         mockupImageUrl: product.mockupImageUrl.trim() || null,
         defaultAssetId: product.defaultAssetId.trim() || null,
+        niche: product.niche.trim() || null,
+        style: product.style.trim() || null,
         active: product.active,
         featured: product.featured,
         updatedAt: serverTimestamp(),
@@ -316,6 +322,58 @@ export default function EditProductPage() {
                 resize: 'vertical',
               }}
             />
+          </div>
+
+          {/* Niche */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Niche (optional)
+            </label>
+            <input
+              type="text"
+              value={product.niche}
+              onChange={(e) => handleFieldChange('niche', e.target.value)}
+              placeholder="e.g. gaming, fitness, pets"
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+            <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
+              Used for gallery and shop filtering.
+            </p>
+          </div>
+
+          {/* Style tag */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Style tag (optional)
+            </label>
+            <input
+              type="text"
+              value={product.style}
+              onChange={(e) => handleFieldChange('style', e.target.value)}
+              placeholder="e.g. Retro Synthwave, Minimalist Line Art"
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+            <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
+              Used for gallery and shop filtering.
+            </p>
           </div>
 
           {/* Price */}
