@@ -20,6 +20,8 @@ export default function NewProductPage() {
   const [defaultAssetId, setDefaultAssetId] = useState('');
   const [active, setActive] = useState(true);
   const [featured, setFeatured] = useState(false);
+  const [niche, setNiche] = useState('');
+  const [style, setStyle] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,8 @@ export default function NewProductPage() {
         price: priceNumber,
         mockupImageUrl: mockupImageUrl.trim() || null,
         defaultAssetId: defaultAssetId.trim() || null,
+        niche: niche.trim() || null,
+        style: style.trim() || null,
         active,
         featured,
         createdAt: serverTimestamp(),
@@ -188,6 +192,58 @@ export default function NewProductPage() {
                 resize: 'vertical',
               }}
             />
+          </div>
+
+          {/* Niche */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Niche (optional)
+            </label>
+            <input
+              type="text"
+              value={niche}
+              onChange={(e) => setNiche(e.target.value)}
+              placeholder="e.g. gaming, fitness, pets"
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+            <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
+              Used for gallery and shop filtering.
+            </p>
+          </div>
+
+          {/* Style tag */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Style tag (optional)
+            </label>
+            <input
+              type="text"
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              placeholder="e.g. Retro Synthwave, Minimalist Line Art"
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: '#e5e7eb',
+              }}
+            />
+            <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
+              Used for gallery and shop filtering.
+            </p>
           </div>
 
           {/* Price */}
