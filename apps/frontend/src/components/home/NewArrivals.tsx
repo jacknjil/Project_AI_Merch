@@ -17,7 +17,7 @@ export function NewArrivals() {
             <h2 className="text-2xl font-bold text-primary">New Arrivals</h2>
           </div>
           <Link
-            href="/products"
+            href="/shop"
             className="border-b border-muted/40 pb-0.5 text-xs text-muted transition-colors hover:border-primary hover:text-primary"
           >
             Browse All →
