@@ -12,14 +12,18 @@ Add clickable pill-chip filters for `niche` and `style` to the gallery (`/galler
 ## 1. Data Changes
 
 ### Assets (Firestore `assets` collection)
+
 No Firestore writes needed. The `style` field is already saved by the `/api/n8n/create-asset` route (mapped from the n8n Google Sheet's `styleTag` column). The `niche` field is also already stored.
 
 Frontend changes only:
+
 - Add `style?: string` to the `Asset` interface in `src/lib/types.ts`.
 - Map `style` from each Firestore doc in the gallery page fetch.
 
 ### Products (Firestore `products` collection)
+
 Add two new optional fields:
+
 - `niche?: string` — free-text, e.g. `"gaming"`, `"fitness"`
 - `style?: string` — free-text, e.g. `"Retro Synthwave"`, `"Minimalist Line Art"`
 
@@ -34,11 +38,12 @@ Written via the admin product forms. Read by the shop page for filtering. No Fir
 **File:** `src/components/FilterBar.tsx`
 
 ### Props
+
 ```ts
 type FilterDimension = {
   key: 'niche' | 'style';
-  label: string;      // display label for the row, e.g. "Niche" or "Style"
-  values: string[];   // sorted unique values derived from loaded data
+  label: string; // display label for the row, e.g. "Niche" or "Style"
+  values: string[]; // sorted unique values derived from loaded data
 };
 
 type FilterBarProps = {
@@ -49,6 +54,7 @@ type FilterBarProps = {
 ```
 
 ### Behavior
+
 - Renders one row of pill chips per `FilterDimension`.
 - Clicking an inactive pill sets it as the active filter for that dimension.
 - Clicking the currently active pill clears it (sets to `null`).
@@ -57,6 +63,7 @@ type FilterBarProps = {
 - Uses inline styles consistent with the dark theme (`background: '#020617'`, etc.) matching the existing gallery and shop pages.
 
 ### Active pill style
+
 Inactive: subtle border (`#4b5563`), dark background (`#1f2937`), muted text (`#9ca3af`).  
 Active: cyan-tinted border (`#06b6d4`), tinted background (`#0c2a31`), bright text (`#a5f3fc`).
 
@@ -67,6 +74,7 @@ Active: cyan-tinted border (`#06b6d4`), tinted background (`#0c2a31`), bright te
 **File:** `src/app/gallery/page.tsx`
 
 ### Changes
+
 1. Add `style` to the local `Asset` type and map from Firestore doc.
 2. Add `activeNiche: string | null` and `activeStyle: string | null` state.
 3. Compute `niches` and `styles` via `useMemo` over loaded assets (sorted, deduped).
@@ -80,7 +88,8 @@ Active: cyan-tinted border (`#06b6d4`), tinted background (`#0c2a31`), bright te
 
 **File:** `src/app/shop/page.tsx`
 
-### Changes
+### Change 2
+
 1. Add `niche?: string` and `style?: string` to local `ProductDoc` type and map from Firestore doc.
 2. Add `activeNiche: string | null` and `activeStyle: string | null` state.
 3. Compute `niches` and `styles` via `useMemo` over loaded products.
@@ -95,10 +104,12 @@ No changes to the Firestore query.
 ## 5. Admin Product Forms
 
 **Files:**
+
 - `src/app/admin/products/new/page.tsx`
 - `src/app/admin/products/[productId]/page.tsx`
 
-### Changes
+### Change 3
+
 1. Add `niche` and `style` state fields (free-text string, default empty).
 2. Add `<input type="text">` for each field with labels "Niche (optional)" and "Style tag (optional)".
 3. Helper text: "Used for gallery and shop filtering."

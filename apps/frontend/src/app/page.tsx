@@ -21,7 +21,7 @@ export default function Home() {
           </p>
           <div className="flex justify-center gap-4">
             <Link
-              href="/products"
+              href="/shop"
               className="rounded border border-white/20 px-6 py-2.5 text-sm text-muted transition-colors hover:border-white/40 hover:text-primary"
             >
               Browse Shop
