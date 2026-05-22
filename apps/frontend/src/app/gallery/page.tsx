@@ -150,12 +150,12 @@ export default function GalleryPage() {
                   key={asset.id}
                   href={`/asset/${asset.id}`}
                   style={{
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid #1f2937',
                     borderRadius: 12,
                     overflow: 'hidden',
                     textDecoration: 'none',
                     color: 'inherit',
-                    background: '#fff',
+                    background: '#111827',
                   }}
                 >
                   <div
@@ -163,7 +163,7 @@ export default function GalleryPage() {
                       position: 'relative',
                       width: '100%',
                       aspectRatio: '1 / 1',
-                      background: '#f3f4f6',
+                      background: '#020617',
                     }}
                   >
                     <Image
