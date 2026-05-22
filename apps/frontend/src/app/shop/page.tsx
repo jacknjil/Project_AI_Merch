@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import FilterBar from '@/components/FilterBar';
 
 type ProductDoc = {
   id: string;
@@ -14,12 +15,16 @@ type ProductDoc = {
   active?: boolean;
   mockupImageUrl?: string | null;
   defaultAssetId?: string | null;
+  niche?: string;
+  style?: string;
 };
 
 export default function ShopPage() {
   const [products, setProducts] = useState<ProductDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeNiche, setActiveNiche] = useState<string | null>(null);
+  const [activeStyle, setActiveStyle] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -28,7 +33,6 @@ export default function ShopPage() {
         setLoading(true);
 
         const productsCol = collection(db, 'products');
-        // Only active products; ordered by name
         const q = query(
           productsCol,
           where('active', '==', true),
@@ -39,7 +43,6 @@ export default function ShopPage() {
         const items: ProductDoc[] = snap.docs.map((doc) => {
           const data = doc.data() as any;
 
-          // Use the same robust resolution of mockup URL as admin
           const resolvedMockupUrl: string | null =
             data.mockupImageUrl ??
             data.mockup_image_url ??
@@ -54,6 +57,8 @@ export default function ShopPage() {
             active: typeof data.active === 'boolean' ? data.active : true,
             mockupImageUrl: resolvedMockupUrl,
             defaultAssetId: data.defaultAssetId ?? null,
+            niche: data.niche ?? '',
+            style: data.style ?? '',
           };
         });
 
@@ -69,6 +74,30 @@ export default function ShopPage() {
     load();
   }, []);
 
+  const niches = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) if (p.niche) set.add(p.niche);
+    return Array.from(set).sort();
+  }, [products]);
+
+  const styles = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) if (p.style) set.add(p.style);
+    return Array.from(set).sort();
+  }, [products]);
+
+  const filtered = useMemo(() => {
+    let result = products;
+    if (activeNiche) result = result.filter((p) => p.niche === activeNiche);
+    if (activeStyle) result = result.filter((p) => p.style === activeStyle);
+    return result;
+  }, [products, activeNiche, activeStyle]);
+
+  function handleFilterChange(key: 'niche' | 'style', value: string | null) {
+    if (key === 'niche') setActiveNiche(value);
+    else setActiveStyle(value);
+  }
+
   return (
     <main
       style={{
@@ -78,17 +107,8 @@ export default function ShopPage() {
         padding: 24,
       }}
     >
-      <div
-        style={{
-          maxWidth: 1200,
-          margin: '0 auto',
-        }}
-      >
-        <header
-          style={{
-            marginBottom: 24,
-          }}
-        >
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <header style={{ marginBottom: 24 }}>
           <h1 style={{ margin: 0 }}>Shop</h1>
           <p
             style={{
@@ -103,221 +123,200 @@ export default function ShopPage() {
         </header>
 
         {loading && (
-          <p
-            style={{
-              fontSize: '0.9rem',
-              color: '#9ca3af',
-            }}
-          >
+          <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
             Loading products…
           </p>
         )}
 
         {error && (
-          <p
-            style={{
-              fontSize: '0.9rem',
-              color: '#fca5a5',
-              marginBottom: 12,
-            }}
-          >
+          <p style={{ fontSize: '0.9rem', color: '#fca5a5', marginBottom: 12 }}>
             {error}
           </p>
         )}
 
         {!loading && !error && products.length === 0 && (
-          <p
-            style={{
-              fontSize: '0.9rem',
-              color: '#9ca3af',
-            }}
-          >
+          <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
             No products are available yet. Check back soon!
           </p>
         )}
 
         {!loading && !error && products.length > 0 && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: 16,
-            }}
-          >
-            {products.map((p) => {
-              const priceDisplay =
-                typeof p.price === 'number'
-                  ? `$${p.price.toFixed(2)}`
-                  : 'Price TBA';
+          <>
+            <FilterBar
+              filters={[
+                { key: 'niche', label: 'Niche', values: niches },
+                { key: 'style', label: 'Style', values: styles },
+              ]}
+              active={{ niche: activeNiche, style: activeStyle }}
+              onChange={handleFilterChange}
+            />
 
-              const canCustomize = !!p.defaultAssetId;
+            {filtered.length === 0 && (
+              <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
+                No products match the selected filters.
+              </p>
+            )}
 
-              return (
-                <article
-                  key={p.id}
-                  style={{
-                    borderRadius: 12,
-                    border: '1px solid #1f2937',
-                    background: '#020617',
-                    padding: 12,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
-                  {/* Image */}
-                  <div
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 16,
+              }}
+            >
+              {filtered.map((p) => {
+                const priceDisplay =
+                  typeof p.price === 'number'
+                    ? `$${p.price.toFixed(2)}`
+                    : 'Price TBA';
+
+                const canCustomize = !!p.defaultAssetId;
+
+                return (
+                  <article
+                    key={p.id}
                     style={{
-                      borderRadius: 10,
-                      border: '1px solid #111827',
-                      overflow: 'hidden',
+                      borderRadius: 12,
+                      border: '1px solid #1f2937',
                       background: '#020617',
-                      aspectRatio: '1 / 1',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {p.mockupImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={p.mockupImageUrl}
-                        alt={p.name}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          display: 'block',
-                        }}
-                        onError={(e) =>
-                          console.error(
-                            '[SHOP] Failed to load product image:',
-                            e.currentTarget.src,
-                          )
-                        }
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: '0.8rem',
-                          color: '#6b7280',
-                          textAlign: 'center',
-                          padding: 8,
-                        }}
-                      >
-                        No image yet
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Text info */}
-                  <div
-                    style={{
+                      padding: 12,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 4,
-                      flexGrow: 1,
-                    }}
-                  >
-                    <h2
-                      style={{
-                        margin: 0,
-                        fontSize: '1rem',
-                      }}
-                    >
-                      {p.name}
-                    </h2>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: '0.9rem',
-                        color: '#9ca3af',
-                      }}
-                    >
-                      {priceDisplay}
-                    </p>
-                    {p.description && (
-                      <p
-                        style={{
-                          margin: 0,
-                          marginTop: 4,
-                          fontSize: '0.8rem',
-                          color: '#6b7280',
-                        }}
-                      >
-                        {p.description.length > 120
-                          ? p.description.slice(0, 117) + '...'
-                          : p.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Buttons */}
-                  <div
-                    style={{
-                      marginTop: 8,
-                      display: 'flex',
                       gap: 8,
                     }}
                   >
-                    <Link
-                      href={`/shop/${p.id}`}
+                    <div
                       style={{
-                        flex: 1,
-                        padding: '6px 10px',
-                        borderRadius: 8,
-                        border: '1px solid #4b5563',
-                        background: '#111827',
-                        color: '#e5e7eb',
-                        fontSize: '0.85rem',
-                        textDecoration: 'none',
-                        textAlign: 'center',
+                        borderRadius: 10,
+                        border: '1px solid #111827',
+                        overflow: 'hidden',
+                        background: '#020617',
+                        aspectRatio: '1 / 1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
-                      View details
-                    </Link>
+                      {p.mockupImageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.mockupImageUrl}
+                          alt={p.name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            display: 'block',
+                          }}
+                          onError={(e) =>
+                            console.error(
+                              '[SHOP] Failed to load product image:',
+                              e.currentTarget.src,
+                            )
+                          }
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '0.8rem',
+                            color: '#6b7280',
+                            textAlign: 'center',
+                            padding: 8,
+                          }}
+                        >
+                          No image yet
+                        </span>
+                      )}
+                    </div>
 
-                    {canCustomize ? (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        flexGrow: 1,
+                      }}
+                    >
+                      <h2 style={{ margin: 0, fontSize: '1rem' }}>{p.name}</h2>
+                      <p style={{ margin: 0, fontSize: '0.9rem', color: '#9ca3af' }}>
+                        {priceDisplay}
+                      </p>
+                      {p.description && (
+                        <p
+                          style={{
+                            margin: 0,
+                            marginTop: 4,
+                            fontSize: '0.8rem',
+                            color: '#6b7280',
+                          }}
+                        >
+                          {p.description.length > 120
+                            ? p.description.slice(0, 117) + '...'
+                            : p.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                       <Link
-                        href={`/studio?productId=${p.id}&assetId=${p.defaultAssetId}`}
+                        href={`/shop/${p.id}`}
                         style={{
                           flex: 1,
                           padding: '6px 10px',
                           borderRadius: 8,
-                          border: '1px solid #10b981',
-                          background: '#022c22',
-                          color: '#a7f3d0',
+                          border: '1px solid #4b5563',
+                          background: '#111827',
+                          color: '#e5e7eb',
                           fontSize: '0.85rem',
                           textDecoration: 'none',
                           textAlign: 'center',
                         }}
                       >
-                        Customize
+                        View details
                       </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled
-                        style={{
-                          flex: 1,
-                          padding: '6px 10px',
-                          borderRadius: 8,
-                          border: '1px solid #374151',
-                          background: '#020617',
-                          color: '#4b5563',
-                          fontSize: '0.8rem',
-                          cursor: 'not-allowed',
-                        }}
-                        title="Set a default asset on this product to enable customization."
-                      >
-                        No default design
-                      </button>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+
+                      {canCustomize ? (
+                        <Link
+                          href={`/studio?productId=${p.id}&assetId=${p.defaultAssetId}`}
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            borderRadius: 8,
+                            border: '1px solid #10b981',
+                            background: '#022c22',
+                            color: '#a7f3d0',
+                            fontSize: '0.85rem',
+                            textDecoration: 'none',
+                            textAlign: 'center',
+                          }}
+                        >
+                          Customize
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            borderRadius: 8,
+                            border: '1px solid #374151',
+                            background: '#020617',
+                            color: '#4b5563',
+                            fontSize: '0.8rem',
+                            cursor: 'not-allowed',
+                          }}
+                          title="Set a default asset on this product to enable customization."
+                        >
+                          No default design
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </main>
