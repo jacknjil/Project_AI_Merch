@@ -7,57 +7,57 @@ export type PromptTemplate = {
 
 export const PROMPT_TEMPLATES: PromptTemplate[] = [
   {
-    id: "retro_synthwave",
-    label: "Retro Synthwave",
-    description: "Neon grid, glowing sun, 80s retro-futuristic design",
-    build: (vars) => `
-A high-quality synthwave t-shirt design featuring ${vars?.subject || "a silhouetted mountain"}.
-Vibrant neon grid, retro sun with glowing rays, deep purples and pinks,
-crisp vector lines, 1980s vaporwave aesthetic, centered composition.
+    id: "retro_pixel",
+    label: "Retro Pixel Art",
+    description: "8-bit astronaut for nostalgia-themed apparel",
+    build: () => `
+8-bit pixel art t-shirt design: a heroic pixel astronaut floating in deep space, holding a glowing star, retro arcade game sprite style.
+Electric blue sky, golden yellow highlights, deep navy background. Chunky pixel grid, hard edges, no anti-aliasing.
+Centered composition, transparent background, print-ready for dark apparel.
 `,
   },
 
   {
-    id: "cute_animal",
-    label: "Cute Animal Mascot",
-    description: "Kawaii-style animal for stickers or apparel",
-    build: (vars) => `
-A super cute kawaii-style ${vars?.animal || "cat"} mascot illustration.
-Soft pastel colors, rounded shapes, big expressive eyes,
-clean outlines, perfect for stickers or t-shirts.
+    id: "celestial_mystic",
+    label: "Celestial Mystic",
+    description: "Moon goddess with sacred geometry for cosmic-themed apparel",
+    build: () => `
+Intricate illustration of a crescent moon goddess surrounded by swirling constellations, a sacred geometry mandala, and blooming celestial flowers.
+Deep midnight blue background, rich gold linework, soft violet accents. Art nouveau aesthetic, detailed symmetrical composition.
+Merch-print ready, clean edges, suitable for dark t-shirts and tote bags.
 `,
   },
 
   {
-    id: "vintage_badge",
-    label: "Vintage Badge Logo",
-    description: "Outdoor / adventure / retro badge",
-    build: (vars) => `
-A vintage outdoor badge logo design featuring ${vars?.theme || "a mountain landscape"}.
-Distressed texture, bold outlines, retro color palette,
-perfect for apparel prints and patches.
+    id: "vintage_park_poster",
+    label: "Vintage Park Poster",
+    description: "WPA-style retro outdoor poster for nature lovers",
+    build: () => `
+Vintage WPA-style national park poster illustration: a majestic mountain peak reflected in a glassy alpine lake, framed by tall pine trees and a bold sunburst arc.
+Flat retro color palette — forest green, burnt sienna, cream, and navy. 1930s bold poster aesthetic, no gradients, no photo-realism.
+Centered badge composition, strong silhouettes, crisp edges, perfect for printing on light fabric.
 `,
   },
 
   {
-    id: "minimalist_line",
-    label: "Minimalist Line Art",
-    description: "Elegant single-line drawing",
-    build: (vars) => `
-A minimalist single-line continuous drawing of ${vars?.subject || "a flower"}.
-Clean vector lines, elegant curves, modern aesthetic,
-perfect for tote bags, apparel, and prints.
+    id: "kawaii_corgi",
+    label: "Kawaii Corgi",
+    description: "Adorable chibi pet character for animal lover apparel",
+    build: () => `
+Adorable kawaii chibi corgi with huge shining eyes, fluffy rounded ears, and a gentle smile, sitting with tiny paws raised.
+Soft pastel palette — blush pink, lavender, cream, warm tan fur. Clean vector outlines, smooth shading, Studio Ghibli-inspired warmth.
+Transparent background, sticker-ready composition, perfect for t-shirts, tote bags, and patches.
 `,
   },
 
   {
-    id: "gaming_character",
-    label: "Gaming Character",
-    description: "Epic mascot for esports / gaming shirts",
-    build: (vars) => `
-A powerful esports mascot illustration of ${vars?.character || "a cyber ninja"}.
-Dynamic pose, sharp highlights, glowing accents, bold outlines,
-designed for gaming apparel.
+    id: "cyberpunk_neon",
+    label: "Cyberpunk Neon",
+    description: "Bold neon-lit warrior for gaming and streetwear",
+    build: () => `
+A sleek cyberpunk cat warrior in a neon-lit rain-soaked alley, wearing a hooded cloak with glowing circuit patterns, katana drawn.
+Electric pink and cyan neon reflections on wet pavement, deep navy background. Bold cel-shaded illustration style, high contrast, sharp outlines.
+Dynamic 3/4 front-view pose, t-shirt print ready, clean edges on a dark background.
 `,
   },
 ];

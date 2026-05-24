@@ -1,4 +1,5 @@
 # Prompt Builder & AI Enhancement — Design Spec
+
 **Date:** 2026-05-24  
 **Sprint:** 8  
 **Status:** Approved
@@ -23,6 +24,7 @@ Replace the template dropdown with a guided 5-field prompt builder that assemble
 
 **`src/lib/promptBuilder.ts`**  
 Configuration and assembly logic:
+
 - `NICHES` — list of niche options (nurses, teachers, dogs, astrology, gaming, hiking, general)
 - `SUBJECTS_BY_NICHE` — map of niche → suggested subject options (curated, ~5-8 per niche)
 - `STYLE_TAGS` — list of style options matching existing sheet styleTags
@@ -32,6 +34,7 @@ Configuration and assembly logic:
 
 **`src/app/api/studio/enhance-prompt/route.ts`**  
 POST endpoint:
+
 - Input: `{ prompt: string }`
 - Calls GPT-4.1-mini via existing `src/lib/openai.ts` client
 - System prompt instructs model to expand into a detailed, merch-optimized DALL-E prompt
@@ -42,6 +45,7 @@ POST endpoint:
 
 **`src/app/studio/generate/page.tsx`**  
 Left panel changes:
+
 - Remove: template dropdown
 - Add: 5 builder fields (Niche → Subject → Style → Mood → Color Palette)
   - Subject field: dropdown seeded from `SUBJECTS_BY_NICHE[selectedNiche]` + free-text input fallback
@@ -54,13 +58,14 @@ Left panel changes:
 - Keep: existing Quick Templates section (renamed from "Prompt Template") as a fast-start shortcut
 
 ### Unchanged Files
+
 - `src/lib/promptTemplates.ts` — existing 5 templates kept as-is
 - `src/app/api/studio/generate/route.ts` — no changes
 - `src/lib/openai.ts` — used as-is
 
 ## Data Flow
 
-```
+```text
 User fills fields
       ↓
 buildPrompt(fields) → populates textarea (live)
@@ -78,11 +83,11 @@ DALL-E images appear in right panel
 
 ## Error Handling
 
-| Scenario | Behavior |
-|----------|----------|
-| Enhance API fails | Inline error shown, textarea keeps original prompt, Generate still works |
-| Fields empty on Enhance | Button disabled until at least Subject is filled |
-| Generate with empty prompt | Existing validation unchanged ("Please enter a prompt") |
+| Scenario                   | Behavior                                                                 |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Enhance API fails          | Inline error shown, textarea keeps original prompt, Generate still works |
+| Fields empty on Enhance    | Button disabled until at least Subject is filled                         |
+| Generate with empty prompt | Existing validation unchanged ("Please enter a prompt")                  |
 
 ## Sheet Metadata Gap (follow-up, not in this sprint)
 
