@@ -2,3 +2,5 @@
 .playwright-mcp/
 *.png
 tools/prompt_scraper/prompts.db
+__pycache__/
+*.pyc
