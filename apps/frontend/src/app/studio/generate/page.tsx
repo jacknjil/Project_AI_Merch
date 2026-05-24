@@ -46,14 +46,17 @@ export default function GenerateAssetPage() {
   const subjectValue = subjectCustom.trim() || fields.subject;
   const effectiveFields = { ...fields, subject: subjectValue };
 
-  function updateField(key: keyof BuilderFields, value: string) {
+  function updateField(key: keyof BuilderFields, value: string, currentSubjectCustom: string) {
     const updated = { ...fields, [key]: value };
     if (key === 'niche') {
       updated.subject = '';
       setSubjectCustom('');
     }
     setFields(updated);
-    const assembled = buildPrompt({ ...updated, subject: key === 'niche' ? '' : (subjectCustom.trim() || updated.subject) });
+    const assembled = buildPrompt({
+      ...updated,
+      subject: key === 'niche' ? '' : (currentSubjectCustom.trim() || updated.subject),
+    });
     if (assembled) setPrompt(assembled);
   }
 
@@ -159,10 +162,11 @@ export default function GenerateAssetPage() {
 
             {/* Builder: Niche */}
             <div className="w-full space-y-1">
-              <label className="text-sm font-medium leading-none">Niche</label>
+              <label htmlFor="niche" className="text-sm font-medium leading-none">Niche</label>
               <select
+                id="niche"
                 value={fields.niche}
-                onChange={(e) => updateField('niche', e.target.value)}
+                onChange={(e) => updateField('niche', e.target.value, subjectCustom)}
                 className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <option value="" className="bg-secondary">-- Select Niche --</option>
@@ -174,7 +178,7 @@ export default function GenerateAssetPage() {
 
             {/* Builder: Subject */}
             <div className="w-full space-y-1">
-              <label className="text-sm font-medium leading-none">Subject</label>
+              <label htmlFor="subject" className="text-sm font-medium leading-none">Subject</label>
               {subjectOptions.length > 0 && (
                 <select
                   value={fields.subject}
@@ -188,6 +192,7 @@ export default function GenerateAssetPage() {
                 </select>
               )}
               <input
+                id="subject"
                 type="text"
                 value={subjectCustom}
                 onChange={(e) => updateSubjectCustom(e.target.value)}
@@ -198,10 +203,11 @@ export default function GenerateAssetPage() {
 
             {/* Builder: Style */}
             <div className="w-full space-y-1">
-              <label className="text-sm font-medium leading-none">Style</label>
+              <label htmlFor="style" className="text-sm font-medium leading-none">Style</label>
               <select
+                id="style"
                 value={fields.style}
-                onChange={(e) => updateField('style', e.target.value)}
+                onChange={(e) => updateField('style', e.target.value, subjectCustom)}
                 className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <option value="" className="bg-secondary">-- Select Style --</option>
@@ -213,10 +219,11 @@ export default function GenerateAssetPage() {
 
             {/* Builder: Mood */}
             <div className="w-full space-y-1">
-              <label className="text-sm font-medium leading-none">Mood</label>
+              <label htmlFor="mood" className="text-sm font-medium leading-none">Mood</label>
               <select
+                id="mood"
                 value={fields.mood}
-                onChange={(e) => updateField('mood', e.target.value)}
+                onChange={(e) => updateField('mood', e.target.value, subjectCustom)}
                 className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <option value="" className="bg-secondary">-- Select Mood --</option>
@@ -228,10 +235,11 @@ export default function GenerateAssetPage() {
 
             {/* Builder: Color Palette */}
             <div className="w-full space-y-1">
-              <label className="text-sm font-medium leading-none">Color Palette</label>
+              <label htmlFor="colorPalette" className="text-sm font-medium leading-none">Color Palette</label>
               <select
+                id="colorPalette"
                 value={fields.colorPalette}
-                onChange={(e) => updateField('colorPalette', e.target.value)}
+                onChange={(e) => updateField('colorPalette', e.target.value, subjectCustom)}
                 className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <option value="" className="bg-secondary">-- Select Palette --</option>
@@ -285,7 +293,7 @@ export default function GenerateAssetPage() {
               <label className="text-sm font-medium leading-none">Prompt</label>
               <textarea
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => { setPrompt(e.target.value); setEnhanceError(null); }}
                 rows={5}
                 placeholder="Fill the fields above or write your own prompt…"
                 className="flex w-full resize-none rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
