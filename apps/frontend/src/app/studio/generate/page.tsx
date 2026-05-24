@@ -3,6 +3,15 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import {
+  BuilderFields,
+  NICHES,
+  SUBJECTS_BY_NICHE,
+  STYLE_TAGS,
+  MOODS,
+  COLOR_PALETTES,
+  buildPrompt,
+} from '@/lib/promptBuilder';
 import { PROMPT_TEMPLATES } from '@/lib/promptTemplates';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,15 +23,73 @@ type GeneratedAsset = {
   imageUrl: string;
 };
 
+const EMPTY_FIELDS: BuilderFields = {
+  niche: '',
+  subject: '',
+  style: '',
+  mood: '',
+  colorPalette: '',
+};
+
 export default function GenerateAssetPage() {
+  const [fields, setFields] = useState<BuilderFields>(EMPTY_FIELDS);
+  const [subjectCustom, setSubjectCustom] = useState('');
   const [prompt, setPrompt] = useState('');
   const [title, setTitle] = useState('');
-  const [niche, setNiche] = useState('');
   const [count, setCount] = useState<number>(1);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [generatedAssets, setGeneratedAssets] = useState<GeneratedAsset[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const subjectValue = subjectCustom.trim() || fields.subject;
+  const effectiveFields = { ...fields, subject: subjectValue };
+
+  function updateField(key: keyof BuilderFields, value: string) {
+    const updated = { ...fields, [key]: value };
+    if (key === 'niche') {
+      updated.subject = '';
+      setSubjectCustom('');
+    }
+    setFields(updated);
+    const assembled = buildPrompt({ ...updated, subject: key === 'niche' ? '' : (subjectCustom.trim() || updated.subject) });
+    if (assembled) setPrompt(assembled);
+  }
+
+  function updateSubjectDropdown(value: string) {
+    setSubjectCustom('');
+    const updated = { ...fields, subject: value };
+    setFields(updated);
+    const assembled = buildPrompt({ ...updated, subject: value });
+    if (assembled) setPrompt(assembled);
+  }
+
+  function updateSubjectCustom(value: string) {
+    setSubjectCustom(value);
+    const assembled = buildPrompt({ ...fields, subject: value.trim() || fields.subject });
+    if (assembled) setPrompt(assembled);
+  }
+
+  async function handleEnhance() {
+    if (!prompt.trim()) return;
+    setEnhancing(true);
+    setEnhanceError(null);
+    try {
+      const res = await fetch('/api/studio/enhance-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Enhance failed');
+      setPrompt(data.enhancedPrompt);
+    } catch (err: unknown) {
+      setEnhanceError(err instanceof Error ? err.message : 'Enhance failed');
+    } finally {
+      setEnhancing(false);
+    }
+  }
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -40,7 +107,7 @@ export default function GenerateAssetPage() {
         body: JSON.stringify({
           prompt,
           title: title || prompt.slice(0, 60),
-          niche: niche || 'general',
+          niche: effectiveFields.niche || 'general',
           count,
         }),
       });
@@ -60,6 +127,9 @@ export default function GenerateAssetPage() {
     }
   };
 
+  const subjectOptions = fields.niche ? (SUBJECTS_BY_NICHE[fields.niche] ?? []) : [];
+  const canEnhance = !!prompt.trim() && !enhancing;
+
   return (
     <div className="flex flex-1 flex-col">
       {/* Page header */}
@@ -73,7 +143,6 @@ export default function GenerateAssetPage() {
 
         {/* LEFT: Control panel */}
         <aside className="w-full shrink-0 border-b border-white/5 p-6 lg:w-96 lg:self-start lg:sticky lg:top-16 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:border-white/10">
-          {/* Tab-bar slot — add future tabs (Settings, History) here */}
           <div className="mb-6 border-b border-white/10">
             <span className="inline-block border-b-2 border-accent pb-2 text-sm font-semibold text-primary">
               Generate
@@ -88,40 +157,109 @@ export default function GenerateAssetPage() {
               onChange={(e) => setTitle(e.target.value)}
             />
 
-            <Input
-              label="Niche"
-              placeholder="e.g. 80s-retro, kawaii-animals"
-              value={niche}
-              onChange={(e) => setNiche(e.target.value)}
-            />
-
-            {/* Template selector */}
+            {/* Builder: Niche */}
             <div className="w-full space-y-1">
-              <label className="text-sm font-medium leading-none">Prompt Template</label>
+              <label className="text-sm font-medium leading-none">Niche</label>
               <select
-                value={selectedTemplate}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setSelectedTemplate(id);
-                  const tmpl = PROMPT_TEMPLATES.find((t) => t.id === id);
-                  if (tmpl) {
-                    setPrompt(
-                      tmpl.build({
-                        subject: 'a mountain',
-                        animal: 'a fox',
-                        character: 'a robot',
-                        theme: 'a forest at sunset',
-                      })
-                    );
-                  }
-                }}
+                value={fields.niche}
+                onChange={(e) => updateField('niche', e.target.value)}
                 className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <option value="" className="bg-secondary">-- Select Template --</option>
+                <option value="" className="bg-secondary">-- Select Niche --</option>
+                {NICHES.map((n) => (
+                  <option key={n.value} value={n.value} className="bg-secondary">{n.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Builder: Subject */}
+            <div className="w-full space-y-1">
+              <label className="text-sm font-medium leading-none">Subject</label>
+              {subjectOptions.length > 0 && (
+                <select
+                  value={fields.subject}
+                  onChange={(e) => updateSubjectDropdown(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <option value="" className="bg-secondary">-- Pick a subject --</option>
+                  {subjectOptions.map((s) => (
+                    <option key={s} value={s} className="bg-secondary">{s}</option>
+                  ))}
+                </select>
+              )}
+              <input
+                type="text"
+                value={subjectCustom}
+                onChange={(e) => updateSubjectCustom(e.target.value)}
+                placeholder={subjectOptions.length > 0 ? 'Or type your own…' : 'e.g. wolf howling at moon'}
+                className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              />
+            </div>
+
+            {/* Builder: Style */}
+            <div className="w-full space-y-1">
+              <label className="text-sm font-medium leading-none">Style</label>
+              <select
+                value={fields.style}
+                onChange={(e) => updateField('style', e.target.value)}
+                className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <option value="" className="bg-secondary">-- Select Style --</option>
+                {STYLE_TAGS.map((s) => (
+                  <option key={s.value} value={s.value} className="bg-secondary">{s.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Builder: Mood */}
+            <div className="w-full space-y-1">
+              <label className="text-sm font-medium leading-none">Mood</label>
+              <select
+                value={fields.mood}
+                onChange={(e) => updateField('mood', e.target.value)}
+                className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <option value="" className="bg-secondary">-- Select Mood --</option>
+                {MOODS.map((m) => (
+                  <option key={m.value} value={m.value} className="bg-secondary">{m.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Builder: Color Palette */}
+            <div className="w-full space-y-1">
+              <label className="text-sm font-medium leading-none">Color Palette</label>
+              <select
+                value={fields.colorPalette}
+                onChange={(e) => updateField('colorPalette', e.target.value)}
+                className="flex h-10 w-full rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <option value="" className="bg-secondary">-- Select Palette --</option>
+                {COLOR_PALETTES.map((c) => (
+                  <option key={c.value} value={c.value} className="bg-secondary">{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quick Templates */}
+            <div className="w-full space-y-1">
+              <label className="text-sm font-medium leading-none text-muted">Quick Templates</label>
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const tmpl = PROMPT_TEMPLATES.find((t) => t.id === id);
+                  if (tmpl) {
+                    setPrompt(tmpl.build({ subject: 'a mountain', animal: 'a fox', character: 'a robot', theme: 'a forest at sunset' }));
+                    setFields(EMPTY_FIELDS);
+                    setSubjectCustom('');
+                  }
+                }}
+                className="flex h-10 w-full rounded-md border border-white/10 bg-transparent px-3 py-2 text-sm text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <option value="" className="bg-secondary">-- Use a template --</option>
                 {PROMPT_TEMPLATES.map((t) => (
-                  <option key={t.id} value={t.id} className="bg-secondary">
-                    {t.label}
-                  </option>
+                  <option key={t.id} value={t.id} className="bg-secondary">{t.label}</option>
                 ))}
               </select>
             </div>
@@ -135,26 +273,35 @@ export default function GenerateAssetPage() {
                   min={1}
                   max={8}
                   value={count}
-                  onChange={(e) =>
-                    setCount(Math.min(8, Math.max(1, Number(e.target.value) || 1)))
-                  }
+                  onChange={(e) => setCount(Math.min(8, Math.max(1, Number(e.target.value) || 1)))}
                   className="h-10 w-20 rounded-md border border-white/20 bg-transparent px-3 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 />
                 <span className="text-xs text-muted">1–8 images</span>
               </div>
             </div>
 
-            {/* Prompt */}
+            {/* Prompt textarea */}
             <div className="w-full space-y-1">
               <label className="text-sm font-medium leading-none">Prompt</label>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={5}
-                placeholder="Describe the design(s) you want to generate…"
+                placeholder="Fill the fields above or write your own prompt…"
                 className="flex w-full resize-none rounded-md border border-white/20 bg-transparent px-3 py-2 text-sm text-primary placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               />
             </div>
+
+            {/* Enhance button */}
+            <Button
+              onClick={handleEnhance}
+              disabled={!canEnhance}
+              variant="secondary"
+              className="w-full"
+            >
+              {enhancing ? 'Enhancing…' : 'Enhance Prompt ✦'}
+            </Button>
+            {enhanceError && <p className="text-sm text-yellow-400">{enhanceError} — you can still generate.</p>}
 
             <Button
               onClick={handleGenerate}
@@ -173,7 +320,6 @@ export default function GenerateAssetPage() {
         {/* RIGHT: Results panel */}
         <section className="flex-1 p-6">
           {generatedAssets.length === 0 ? (
-            /* Empty state — rendered on load so no layout shift when results arrive */
             <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 text-center">
               <svg
                 className="h-10 w-10 text-accent/40"
@@ -190,11 +336,10 @@ export default function GenerateAssetPage() {
               </svg>
               <p className="text-sm font-medium text-primary">Your designs will appear here</p>
               <p className="text-xs text-muted">
-                Choose a template or write a prompt, then hit Generate
+                Choose a niche and subject, then hit Generate
               </p>
             </div>
           ) : (
-            /* Results grid */
             <div>
               <p className="mb-4 text-sm text-muted">
                 {generatedAssets.length} design{generatedAssets.length !== 1 ? 's' : ''} generated
@@ -205,7 +350,6 @@ export default function GenerateAssetPage() {
                     key={asset.id}
                     className="overflow-hidden rounded-lg border border-white/10 bg-secondary"
                   >
-                    {/* Image with Saved badge */}
                     <div className="relative aspect-square overflow-hidden bg-background">
                       <Image
                         src={asset.imageUrl}
@@ -217,7 +361,6 @@ export default function GenerateAssetPage() {
                         Saved ✓
                       </span>
                     </div>
-                    {/* Card info */}
                     <div className="p-3">
                       <p className="truncate text-sm font-medium text-primary">{asset.title}</p>
                       {asset.niche && (
