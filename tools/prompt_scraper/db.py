@@ -48,17 +48,24 @@ CREATE TABLE IF NOT EXISTS export_batches (
 def get_conn(db_path: str = DEFAULT_DB) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     conn.commit()
 
-def dedup_exists(conn: sqlite3.Connection, source: str, source_id: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM prompts WHERE source = ? AND source_id = ?",
-        (source, source_id)
-    ).fetchone()
+def dedup_exists(conn: sqlite3.Connection, source: str, source_id: Optional[str]) -> bool:
+    if source_id is None:
+        row = conn.execute(
+            "SELECT 1 FROM prompts WHERE source = ? AND source_id IS NULL",
+            (source,)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT 1 FROM prompts WHERE source = ? AND source_id = ?",
+            (source, source_id)
+        ).fetchone()
     return row is not None
 
 def insert_prompt(conn: sqlite3.Connection, source: str, source_id: str,
