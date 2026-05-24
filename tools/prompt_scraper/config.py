@@ -30,7 +30,6 @@ NICHE_TAG_MAP: dict[str, str] = {
     "horoscope": "astrology",
     "gaming": "gaming",
     "gamer": "gaming",
-    "pixel": "gaming",
     "video game": "gaming",
     "hiking": "hiking",
     "mountain": "hiking",
