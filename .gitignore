@@ -1,3 +1,4 @@
 .superpowers/
 .playwright-mcp/
 *.png
+tools/prompt_scraper/prompts.db
