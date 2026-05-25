@@ -46,7 +46,7 @@ def assemble_row(sheet_id: int, niche: str, style_tag: str,
                  source: str, transformed: dict) -> dict:
     return {
         "id": sheet_id,
-        "rowId": sheet_id + 1,
+        "rowId": sheet_id,
         "title": transformed.get("title", ""),
         "niche": niche or "",
         "concept": transformed.get("concept", ""),
