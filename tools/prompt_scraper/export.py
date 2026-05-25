@@ -72,15 +72,17 @@ def export_batch(conn: sqlite3.Connection, count: int = 20,
                  category: Optional[str] = None, min_popularity: int = 0,
                  priority: str = "medium", start_id: int = 62,
                  out: Optional[str] = None,
-                 allow_reuse: bool = False) -> str:
+                 allow_reuse: bool = False, shuffle: bool = False) -> str:
     if allow_reuse:
         rows = [dict(r) for r in conn.execute(
-            "SELECT * FROM prompts ORDER BY popularity DESC LIMIT ?", (count,)
+            "SELECT * FROM prompts ORDER BY RANDOM() LIMIT ?" if shuffle
+            else "SELECT * FROM prompts ORDER BY popularity DESC LIMIT ?", (count,)
         ).fetchall()]
     else:
         rows = db.get_unused_prompts(
             conn, niche=niche, style_tag=style_tag,
-            min_popularity=min_popularity, category=category, limit=count
+            min_popularity=min_popularity, category=category, limit=count,
+            shuffle=shuffle,
         )
 
     if not rows:

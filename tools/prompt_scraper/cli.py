@@ -80,14 +80,16 @@ def scrape_all(ctx):
               help="Starting sheet id (increment from last sheet row)")
 @click.option("--out", default=None, help="Output CSV filename")
 @click.option("--allow-reuse", is_flag=True, default=False)
+@click.option("--shuffle", is_flag=True, default=False,
+              help="Pick rows randomly for variety across niches")
 @click.pass_context
 def export_cmd(ctx, count, niche, style, category, min_popularity,
-               priority, start_id, out, allow_reuse):
+               priority, start_id, out, allow_reuse, shuffle):
     try:
         csv_path = _export.export_batch(
             ctx.obj["conn"], count=count, niche=niche, style_tag=style,
             category=category, min_popularity=min_popularity, priority=priority,
-            start_id=start_id, out=out, allow_reuse=allow_reuse
+            start_id=start_id, out=out, allow_reuse=allow_reuse, shuffle=shuffle,
         )
         click.echo(f"Exported to {csv_path}")
     except (ValueError, OpenAIError) as e:

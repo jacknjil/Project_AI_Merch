@@ -87,7 +87,8 @@ def insert_prompt(conn: sqlite3.Connection, source: str, source_id: str,
 
 def get_unused_prompts(conn: sqlite3.Connection, niche: Optional[str] = None,
                        style_tag: Optional[str] = None, min_popularity: int = 0,
-                       category: Optional[str] = None, limit: int = 20) -> list[dict]:
+                       category: Optional[str] = None, limit: int = 20,
+                       shuffle: bool = False) -> list[dict]:
     q = "SELECT * FROM prompts WHERE used_at IS NULL AND popularity >= ?"
     params: list = [min_popularity]
     if niche:
@@ -99,7 +100,7 @@ def get_unused_prompts(conn: sqlite3.Connection, niche: Optional[str] = None,
     if category:
         q += " AND product_category = ?"
         params.append(category)
-    q += " ORDER BY popularity DESC LIMIT ?"
+    q += " ORDER BY RANDOM() LIMIT ?" if shuffle else " ORDER BY popularity DESC LIMIT ?"
     params.append(limit)
     return [dict(r) for r in conn.execute(q, params).fetchall()]
 
