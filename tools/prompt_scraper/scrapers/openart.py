@@ -10,12 +10,6 @@ FEED_API = "/api/feed/community"
 
 
 def parse_items(items: list) -> list[dict]:
-    """
-    Given a list of feed item dicts from OpenArt's /api/feed/community endpoint,
-    extract: source_id, source_url, raw_prompt, tags, niche, style_tag,
-    color_hints (None), product_category ("shirt"), popularity (int).
-    Only items with non-empty prompts (> 5 chars) are returned.
-    """
     results = []
     for item in items:
         if not isinstance(item, dict):
@@ -25,14 +19,12 @@ def parse_items(items: list) -> list[dict]:
         if not raw_prompt or len(raw_prompt) < 6:
             continue
 
-        # Skip private prompts
         if item.get("is_prompt_private"):
             continue
 
         source_id = item.get("id") or raw_prompt[:40]
         source_url = f"https://openart.ai/discovery/{source_id}"
 
-        # Build tags: ai_model + prompt words (for niche/style mapping)
         ai_model = (item.get("ai_model") or "").strip()
         prompt_words = [w.strip(",.:|") for w in raw_prompt.lower().split() if len(w) > 2]
         all_tags: list[str] = []
@@ -40,7 +32,6 @@ def parse_items(items: list) -> list[dict]:
             all_tags.append(ai_model)
         all_tags.extend(prompt_words[:20])
 
-        # Popularity: prefer like_count, fall back to vote_count or bookmark_count
         stats = item.get("stats") or {}
         popularity = (
             stats.get("like_count")
@@ -68,11 +59,6 @@ def parse_items(items: list) -> list[dict]:
 
 
 def scrape(conn: sqlite3.Connection, limit: int = 100) -> int:
-    """
-    Open openart.ai/discovery with headless Playwright, call the internal
-    /api/feed/community JSON endpoint (with cursor pagination), parse feed
-    items, dedup + insert via db, log the run, and return the count added.
-    """
     added = 0
     items_found = 0
     pages_fetched = 0
@@ -98,11 +84,10 @@ def scrape(conn: sqlite3.Connection, limit: int = 100) -> int:
             )
             page = ctx.new_page()
             # Remove webdriver flag to bypass bot detection
-            page.add_init_script(
+            page.add_init_script(  # strip webdriver flag to avoid bot detection
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
 
-            # Load the discovery page first to establish session/cookies
             try:
                 page.goto(BASE_URL, timeout=30000)
                 page.wait_for_timeout(3000)
@@ -128,7 +113,7 @@ def scrape(conn: sqlite3.Connection, limit: int = 100) -> int:
                             return await resp.json();
                         }}"""
                     )
-                except Exception as exc:
+                except PWTimeout as exc:
                     print(f"{SOURCE}: fetch error: {exc}")
                     break
 
@@ -146,15 +131,10 @@ def scrape(conn: sqlite3.Connection, limit: int = 100) -> int:
                     pages_fetched += 1
 
                 next_cursor = (result.get("nextCursor") or "").strip()
-                # Stop if no more pages or we've collected enough
                 if not next_cursor or next_cursor == cursor:
                     break
                 cursor = next_cursor
 
-                if len(all_items) >= limit:
-                    break
-
-                # Small delay between paginated requests
                 page.wait_for_timeout(800)
 
             browser.close()
@@ -170,8 +150,6 @@ def scrape(conn: sqlite3.Connection, limit: int = 100) -> int:
 
     except PWTimeout as e:
         print(f"{SOURCE}: playwright timeout: {e}")
-    except Exception as e:
-        print(f"{SOURCE}: unexpected error: {e}")
 
     db.log_scrape(conn, SOURCE, pages_fetched, items_found, added)
     print(f"{SOURCE}: added {added} new prompts (found {items_found} total)")
