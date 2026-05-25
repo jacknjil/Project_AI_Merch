@@ -1,6 +1,6 @@
 click>=8.1
 requests>=2.31
 playwright>=1.44
-openai>=1.30
+openai>=1.54
 pytest>=8.0
 pytest-mock>=3.12

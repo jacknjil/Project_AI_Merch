@@ -1,4 +1,5 @@
 import click
+from openai import OpenAIError
 import db as _db
 import export as _export
 from scrapers import civitai, lexica, prompthero, openart, trends
@@ -87,7 +88,7 @@ def export_cmd(ctx, count, niche, style, category, min_popularity,
             start_id=start_id, out=out, allow_reuse=allow_reuse
         )
         click.echo(f"Exported to {csv_path}")
-    except ValueError as e:
+    except (ValueError, OpenAIError) as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
 
