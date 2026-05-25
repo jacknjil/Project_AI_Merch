@@ -1,7 +1,9 @@
 import click
-from openai import OpenAIError
+from openai import OpenAI, OpenAIError
+import config
 import db as _db
 import export as _export
+import generate as _generate
 from scrapers import civitai, lexica, prompthero, openart, trends
 from scrapers import scrape_all as _scrape_all
 
@@ -89,6 +91,27 @@ def export_cmd(ctx, count, niche, style, category, min_popularity,
         )
         click.echo(f"Exported to {csv_path}")
     except (ValueError, OpenAIError) as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+# ── generate ──────────────────────────────────────────────────────────────────
+
+@cli.command("generate")
+@click.option("--niche", required=True, help="Target niche (e.g. cats, coffee, fitness)")
+@click.option("--style", required=True, help="Style tag (e.g. vintage-badge, minimal-line)")
+@click.option("--count", default=20, show_default=True, help="Number of seeds to generate")
+@click.option("--category", default="shirt", show_default=True)
+@click.pass_context
+def generate_cmd(ctx, niche, style, count, category):
+    """Generate concept seeds via GPT for a given niche and style."""
+    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    try:
+        seeds = _generate.generate_seeds(client, niche=niche, style=style,
+                                         category=category, count=count)
+        added = _generate.store_seeds(ctx.obj["conn"], seeds,
+                                      niche=niche, style=style, category=category)
+        click.echo(f"generate: {added} new seeds added ({len(seeds)} generated)")
+    except (OpenAIError, ValueError) as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
 
