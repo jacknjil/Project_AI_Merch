@@ -4,6 +4,7 @@ import config
 import db as _db
 import export as _export
 import generate as _generate
+import matrix as _matrix
 from scrapers import civitai, lexica, prompthero, openart, trends
 from scrapers import scrape_all as _scrape_all
 
@@ -116,6 +117,36 @@ def generate_cmd(ctx, niche, style, count, category):
     except (OpenAIError, ValueError) as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
+
+# ── matrix ────────────────────────────────────────────────────────────────────
+
+@cli.command("matrix")
+@click.option("--niches", default=None,
+              help="Comma-separated niches (default: 15 canonical)")
+@click.option("--styles", default=None,
+              help="Comma-separated style tags (default: 5 core styles)")
+@click.option("--category", default="shirt", show_default=True)
+@click.option("--priority", default="medium", show_default=True)
+@click.option("--start-id", default=102, show_default=True,
+              help="Starting sheet id (should follow last sheet row)")
+@click.option("--out", default="matrix_batch.csv", show_default=True,
+              help="Output CSV filename")
+@click.pass_context
+def matrix_cmd(ctx, niches, styles, category, priority, start_id, out):
+    """Generate a niche × style matrix — one design per combination."""
+    niche_list = [n.strip() for n in niches.split(",")] if niches else _matrix.DEFAULT_NICHES
+    style_list = [s.strip() for s in styles.split(",")] if styles else _matrix.DEFAULT_STYLES
+    total = len(niche_list) * len(style_list)
+    click.echo(f"Building {len(niche_list)} niches × {len(style_list)} styles = {total} rows")
+    try:
+        _matrix.build_matrix(
+            niche_list, style_list,
+            category=category, start_id=start_id, priority=priority, out=out,
+        )
+    except (OpenAIError, ValueError) as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
 
 # ── status ────────────────────────────────────────────────────────────────────
 

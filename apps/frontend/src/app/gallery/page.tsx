@@ -156,7 +156,10 @@ export default function GalleryPage() {
                     textDecoration: 'none',
                     color: 'inherit',
                     background: '#111827',
+                    transition: 'border-color 0.15s',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#374151')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#1f2937')}
                 >
                   <div
                     style={{
@@ -175,45 +178,38 @@ export default function GalleryPage() {
                     />
                   </div>
 
-                  <div style={{ padding: 12 }}>
-                    <p style={{ margin: 0, fontWeight: 600 }}>
+                  <div style={{ padding: '10px 12px 12px' }}>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', lineHeight: 1.3 }}>
                       {asset.title || 'Untitled'}
                     </p>
 
-                    {asset.niche && (
-                      <p
-                        style={{
-                          margin: '4px 0 0 0',
-                          fontSize: '0.85rem',
-                          color: '#6b7280',
-                        }}
-                      >
-                        {asset.niche}
-                      </p>
-                    )}
-
-                    {asset.createdAt && (
-                      <p
-                        style={{
-                          margin: '6px 0 0 0',
-                          fontSize: '0.75rem',
-                          color: '#9ca3af',
-                        }}
-                      >
-                        {asset.createdAt.toLocaleString()}
-                      </p>
-                    )}
-
-                    {asset.source && (
-                      <p
-                        style={{
-                          margin: '4px 0 0 0',
-                          fontSize: '0.75rem',
-                          color: '#6b7280',
-                        }}
-                      >
-                        Source: {asset.source}
-                      </p>
+                    {(asset.niche || asset.style) && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                        {asset.niche && (
+                          <span style={{
+                            fontSize: '0.7rem',
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: '#0c2a31',
+                            color: '#a5f3fc',
+                            border: '1px solid #164e63',
+                          }}>
+                            {asset.niche}
+                          </span>
+                        )}
+                        {asset.style && (
+                          <span style={{
+                            fontSize: '0.7rem',
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: '#1e1b4b',
+                            color: '#c4b5fd',
+                            border: '1px solid #312e81',
+                          }}>
+                            {asset.style}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </Link>
