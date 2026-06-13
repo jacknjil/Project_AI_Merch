@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { adminDb, adminBucket, FieldValue } from '@/lib/firebaseAdmin';
-import { openai } from '@/lib/openai';
+import { recraftGenerate, removeBackground, needsBackgroundRemoval } from '@/lib/recraft';
 
 export const runtime = 'nodejs';
 
@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
     const niche = (body.niche ?? 'general').toString();
     const title = (body.title ?? 'AI generated design').toString();
     const style = body.style ? body.style.toString() : '';
+    const productCategory = body.product_category ? body.product_category.toString().toLowerCase() : '';
 
     let count = Number(body.count ?? 1);
     if (!Number.isFinite(count) || count < 1) count = 1;
@@ -224,26 +225,33 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    const prompt = style ? `${promptRaw}\nStyle: ${style}` : promptRaw;
-
-    const result = await openai.images.generate({
-      model: 'gpt-image-1',
-      prompt,
+    const result = await recraftGenerate({
+      prompt: promptRaw,
+      styleTag: style || undefined,
+      productCategory: productCategory || undefined,
       n: count,
-      size: '1024x1024',
     });
 
     const data = result.data ?? [];
     const assets: Array<{ assetId: string; imageUrl: string }> = [];
+    const removeBg = needsBackgroundRemoval(productCategory);
 
     for (let i = 0; i < data.length; i++) {
       const item: any = data[i];
+      let sourceUrl: string | null = item?.url ?? null;
       let png: Buffer | null = null;
 
       if (item?.b64_json) {
         png = Buffer.from(item.b64_json, 'base64');
-      } else if (item?.url) {
-        const r = await fetch(item.url);
+      } else if (sourceUrl) {
+        if (removeBg) {
+          try {
+            sourceUrl = await removeBackground(sourceUrl);
+          } catch (bgErr: any) {
+            log('create_asset.bg_removal_failed', { requestId, rowId, message: String(bgErr?.message) });
+          }
+        }
+        const r = await fetch(sourceUrl);
         if (!r.ok) continue;
         png = Buffer.from(await r.arrayBuffer());
       }
