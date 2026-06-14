@@ -17,7 +17,19 @@ type ProductDoc = {
   defaultAssetId?: string | null;
   niche?: string;
   style?: string;
+  product_category?: string;
 };
+
+function categoryLabel(raw: string): string {
+  const map: Record<string, string> = {
+    shirt: 'Shirt',
+    hoodie: 'Hoodie',
+    tote: 'Tote Bag',
+    mug: 'Mug',
+    cup: 'Cup',
+  };
+  return map[raw.toLowerCase()] ?? raw;
+}
 
 export default function ShopPage() {
   const [products, setProducts] = useState<ProductDoc[]>([]);
@@ -25,6 +37,7 @@ export default function ShopPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeNiche, setActiveNiche] = useState<string | null>(null);
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -42,7 +55,6 @@ export default function ShopPage() {
 
         const items: ProductDoc[] = snap.docs.map((doc) => {
           const data = doc.data() as any;
-
           const resolvedMockupUrl: string | null =
             data.mockupImageUrl ??
             data.mockup_image_url ??
@@ -59,12 +71,12 @@ export default function ShopPage() {
             defaultAssetId: data.defaultAssetId ?? null,
             niche: data.niche ?? '',
             style: data.style ?? '',
+            product_category: data.product_category ?? '',
           };
         });
 
         setProducts(items);
       } catch (err: any) {
-        console.error('[SHOP] Error loading products:', err);
         setError(err?.message || 'Failed to load products.');
       } finally {
         setLoading(false);
@@ -86,16 +98,24 @@ export default function ShopPage() {
     return Array.from(set).sort();
   }, [products]);
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) if (p.product_category) set.add(p.product_category);
+    return Array.from(set).sort();
+  }, [products]);
+
   const filtered = useMemo(() => {
     let result = products;
     if (activeNiche) result = result.filter((p) => p.niche === activeNiche);
     if (activeStyle) result = result.filter((p) => p.style === activeStyle);
+    if (activeCategory) result = result.filter((p) => p.product_category === activeCategory);
     return result;
-  }, [products, activeNiche, activeStyle]);
+  }, [products, activeNiche, activeStyle, activeCategory]);
 
-  function handleFilterChange(key: 'niche' | 'style', value: string | null) {
+  function handleFilterChange(key: string, value: string | null) {
     if (key === 'niche') setActiveNiche(value);
-    else setActiveStyle(value);
+    else if (key === 'style') setActiveStyle(value);
+    else if (key === 'product_category') setActiveCategory(value);
   }
 
   return (
@@ -123,15 +143,11 @@ export default function ShopPage() {
         </header>
 
         {loading && (
-          <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
-            Loading products…
-          </p>
+          <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>Loading products…</p>
         )}
 
         {error && (
-          <p style={{ fontSize: '0.9rem', color: '#fca5a5', marginBottom: 12 }}>
-            {error}
-          </p>
+          <p style={{ fontSize: '0.9rem', color: '#fca5a5', marginBottom: 12 }}>{error}</p>
         )}
 
         {!loading && !error && products.length === 0 && (
@@ -144,10 +160,11 @@ export default function ShopPage() {
           <>
             <FilterBar
               filters={[
+                { key: 'product_category', label: 'Type', values: categories },
                 { key: 'niche', label: 'Niche', values: niches },
                 { key: 'style', label: 'Style', values: styles },
               ]}
-              active={{ niche: activeNiche, style: activeStyle }}
+              active={{ product_category: activeCategory, niche: activeNiche, style: activeStyle }}
               onChange={handleFilterChange}
             />
 
@@ -166,11 +183,7 @@ export default function ShopPage() {
             >
               {filtered.map((p) => {
                 const priceDisplay =
-                  typeof p.price === 'number'
-                    ? `$${p.price.toFixed(2)}`
-                    : 'Price TBA';
-
-                const canCustomize = !!p.defaultAssetId;
+                  typeof p.price === 'number' ? `$${p.price.toFixed(2)}` : 'Price TBA';
 
                 return (
                   <article
@@ -208,12 +221,6 @@ export default function ShopPage() {
                             objectFit: 'cover',
                             display: 'block',
                           }}
-                          onError={(e) =>
-                            console.error(
-                              '[SHOP] Failed to load product image:',
-                              e.currentTarget.src,
-                            )
-                          }
                         />
                       ) : (
                         <span
@@ -237,6 +244,22 @@ export default function ShopPage() {
                         flexGrow: 1,
                       }}
                     >
+                      {p.product_category && (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            fontSize: '0.7rem',
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            border: '1px solid #374151',
+                            background: '#111827',
+                            color: '#9ca3af',
+                            alignSelf: 'flex-start',
+                          }}
+                        >
+                          {categoryLabel(p.product_category)}
+                        </span>
+                      )}
                       <h2 style={{ margin: 0, fontSize: '1rem' }}>{p.name}</h2>
                       <p style={{ margin: 0, fontSize: '0.9rem', color: '#9ca3af' }}>
                         {priceDisplay}
@@ -257,11 +280,11 @@ export default function ShopPage() {
                       )}
                     </div>
 
-                    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                    <div style={{ marginTop: 8 }}>
                       <Link
                         href={`/shop/${p.id}`}
                         style={{
-                          flex: 1,
+                          display: 'block',
                           padding: '6px 10px',
                           borderRadius: 8,
                           border: '1px solid #4b5563',
@@ -274,43 +297,6 @@ export default function ShopPage() {
                       >
                         View details
                       </Link>
-
-                      {canCustomize ? (
-                        <Link
-                          href={`/studio?productId=${p.id}&assetId=${p.defaultAssetId}`}
-                          style={{
-                            flex: 1,
-                            padding: '6px 10px',
-                            borderRadius: 8,
-                            border: '1px solid #10b981',
-                            background: '#022c22',
-                            color: '#a7f3d0',
-                            fontSize: '0.85rem',
-                            textDecoration: 'none',
-                            textAlign: 'center',
-                          }}
-                        >
-                          Customize
-                        </Link>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled
-                          style={{
-                            flex: 1,
-                            padding: '6px 10px',
-                            borderRadius: 8,
-                            border: '1px solid #374151',
-                            background: '#020617',
-                            color: '#4b5563',
-                            fontSize: '0.8rem',
-                            cursor: 'not-allowed',
-                          }}
-                          title="Set a default asset on this product to enable customization."
-                        >
-                          No default design
-                        </button>
-                      )}
                     </div>
                   </article>
                 );
