@@ -1,15 +1,15 @@
 'use client';
 
 type FilterDimension = {
-  key: 'niche' | 'style';
+  key: string;
   label: string;
   values: string[];
 };
 
 type FilterBarProps = {
   filters: FilterDimension[];
-  active: Record<'niche' | 'style', string | null>;
-  onChange: (key: 'niche' | 'style', value: string | null) => void;
+  active: Record<string, string | null>;
+  onChange: (key: string, value: string | null) => void;
 };
 
 export default function FilterBar({ filters, active, onChange }: FilterBarProps) {
