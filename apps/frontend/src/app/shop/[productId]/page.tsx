@@ -8,6 +8,21 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
 
+const CART_KEY = 'aiMerchCart';
+const APPAREL = new Set(['shirt', 'hoodie', 'tote']);
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL'];
+
+type CartItem = {
+  productId: string;
+  productName: string;
+  price?: number;
+  assetId?: string;
+  assetTitle?: string;
+  mockupImageUrl?: string | null;
+  quantity: number;
+  size?: string;
+};
+
 type ProductDoc = {
   id: string;
   name: string;
@@ -16,7 +31,36 @@ type ProductDoc = {
   active?: boolean;
   mockupImageUrl?: string | null;
   defaultAssetId?: string | null;
+  product_category?: string;
 };
+
+function categoryLabel(raw: string): string {
+  const map: Record<string, string> = {
+    shirt: 'Shirt',
+    hoodie: 'Hoodie',
+    tote: 'Tote Bag',
+    mug: 'Mug',
+    cup: 'Cup',
+  };
+  return map[raw.toLowerCase()] ?? raw;
+}
+
+function readCart(): CartItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(CART_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCart(items: CartItem[]): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(CART_KEY, JSON.stringify(items));
+}
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -26,6 +70,8 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<ProductDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -44,25 +90,20 @@ export default function ProductDetailPage() {
         }
 
         const data = snap.data() as any;
-
         const resolvedMockupUrl: string | null =
           data.mockupImageUrl ?? data.mockup_image_url ?? data.imageUrl ?? null;
 
-        const isActive = typeof data.active === 'boolean' ? data.active : true;
-
-        const p: ProductDoc = {
+        setProduct({
           id: snap.id,
           name: data.name ?? 'Unnamed product',
           description: data.description ?? '',
           price: typeof data.price === 'number' ? data.price : undefined,
-          active: isActive,
+          active: typeof data.active === 'boolean' ? data.active : true,
           mockupImageUrl: resolvedMockupUrl,
           defaultAssetId: data.defaultAssetId ?? null,
-        };
-
-        setProduct(p);
+          product_category: data.product_category ?? '',
+        });
       } catch (err: any) {
-        console.error('[SHOP] Error loading product detail:', err);
         setError(err?.message || 'Failed to load product.');
       } finally {
         setLoading(false);
@@ -72,30 +113,28 @@ export default function ProductDetailPage() {
     load();
   }, [productId]);
 
+  function handleAddToCart() {
+    if (!product) return;
+    const item: CartItem = {
+      productId: product.id,
+      productName: product.name,
+      price: product.price,
+      assetId: undefined,
+      assetTitle: 'Original design',
+      mockupImageUrl: product.mockupImageUrl,
+      quantity: 1,
+      size: selectedSize ?? undefined,
+    };
+    writeCart([...readCart(), item]);
+    setAddedToCart(true);
+    setTimeout(() => setAddedToCart(false), 2000);
+  }
+
   if (loading) {
     return (
-      <main
-        style={{
-          minHeight: '100vh',
-          background: '#020617',
-          color: '#e5e7eb',
-          padding: 24,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 960,
-            margin: '0 auto',
-          }}
-        >
-          <p
-            style={{
-              fontSize: '0.95rem',
-              color: '#9ca3af',
-            }}
-          >
-            Loading product…
-          </p>
+      <main style={{ minHeight: '100vh', background: '#020617', color: '#e5e7eb', padding: 24 }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <p style={{ fontSize: '0.95rem', color: '#9ca3af' }}>Loading product…</p>
         </div>
       </main>
     );
@@ -103,31 +142,10 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <main
-        style={{
-          minHeight: '100vh',
-          background: '#020617',
-          color: '#e5e7eb',
-          padding: 24,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 960,
-            margin: '0 auto',
-          }}
-        >
+      <main style={{ minHeight: '100vh', background: '#020617', color: '#e5e7eb', padding: 24 }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <h1 style={{ marginTop: 0 }}>Product not found</h1>
-          {error && (
-            <p
-              style={{
-                fontSize: '0.9rem',
-                color: '#fca5a5',
-              }}
-            >
-              {error}
-            </p>
-          )}
+          {error && <p style={{ fontSize: '0.9rem', color: '#fca5a5' }}>{error}</p>}
           <button
             type="button"
             onClick={() => router.push('/shop')}
@@ -150,35 +168,24 @@ export default function ProductDetailPage() {
   }
 
   const priceDisplay =
-    typeof product.price === 'number'
-      ? `$${product.price.toFixed(2)}`
-      : 'Price TBA';
+    typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : 'Price TBA';
 
   const canCustomize = !!product.defaultAssetId;
+  const isApparel = product.product_category
+    ? APPAREL.has(product.product_category.toLowerCase())
+    : false;
+  const needsSize = isApparel && !selectedSize;
+  const canAddToCart = !!product.active && !needsSize;
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: '#020617',
-        color: '#e5e7eb',
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 960,
-          margin: '0 auto',
-        }}
-      >
-        {/* Breadcrumb / back link */}
+    <main style={{ minHeight: '100vh', background: '#020617', color: '#e5e7eb', padding: 24 }}>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <div
           style={{
             marginBottom: 16,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            gap: 8,
           }}
         >
           <button
@@ -198,7 +205,6 @@ export default function ProductDetailPage() {
           </button>
         </div>
 
-        {/* Layout: image left, details right */}
         <div
           style={{
             display: 'grid',
@@ -207,7 +213,7 @@ export default function ProductDetailPage() {
             alignItems: 'flex-start',
           }}
         >
-          {/* Image side */}
+          {/* Image */}
           <div>
             <div
               style={{
@@ -238,12 +244,6 @@ export default function ProductDetailPage() {
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                       className="object-cover transition-transform duration-500 hover:scale-105"
                       priority
-                      onError={() =>
-                        console.error(
-                          '[SHOP] Failed to load image:',
-                          product.name,
-                        )
-                      }
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
@@ -257,42 +257,31 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* Detail side */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
+          {/* Details */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: '1.6rem',
-                }}
-              >
-                {product.name}
-              </h1>
-              <p
-                style={{
-                  margin: 0,
-                  marginTop: 4,
-                  fontSize: '1.1rem',
-                  color: '#e5e7eb',
-                }}
-              >
+              {product.product_category && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    marginBottom: 6,
+                    fontSize: '0.75rem',
+                    padding: '3px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #374151',
+                    background: '#111827',
+                    color: '#9ca3af',
+                  }}
+                >
+                  {categoryLabel(product.product_category)}
+                </span>
+              )}
+              <h1 style={{ margin: 0, fontSize: '1.6rem' }}>{product.name}</h1>
+              <p style={{ margin: 0, marginTop: 4, fontSize: '1.1rem', color: '#e5e7eb' }}>
                 {priceDisplay}
               </p>
               {!product.active && (
-                <p
-                  style={{
-                    margin: 0,
-                    marginTop: 4,
-                    fontSize: '0.85rem',
-                    color: '#f97316',
-                  }}
-                >
+                <p style={{ margin: 0, marginTop: 4, fontSize: '0.85rem', color: '#f97316' }}>
                   This product is currently inactive.
                 </p>
               )}
@@ -311,86 +300,81 @@ export default function ProductDetailPage() {
               </p>
             )}
 
-            <div
-              style={{
-                marginTop: 8,
-                padding: 12,
-                borderRadius: 12,
-                border: '1px solid #1f2937',
-                background: '#020617',
-                fontSize: '0.85rem',
-                color: '#9ca3af',
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  marginBottom: 4,
-                }}
-              >
-                This product supports on-the-fly customization. You can adjust
-                the design placement and scale in our Studio before adding it to
-                your cart.
-              </p>
-            </div>
+            {/* Size selector — apparel only */}
+            {isApparel && (
+              <div>
+                <p style={{ margin: 0, marginBottom: 8, fontSize: '0.8rem', color: '#9ca3af' }}>
+                  Size
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {SIZES.map((s) => {
+                    const active = selectedSize === s;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSelectedSize(active ? null : s)}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 6,
+                          border: `1px solid ${active ? '#10b981' : '#374151'}`,
+                          background: active ? '#022c22' : '#111827',
+                          color: active ? '#a7f3d0' : '#9ca3af',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
-            <div
-              style={{
-                marginTop: 8,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              {canCustomize ? (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={!canAddToCart}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 999,
+                  border: `1px solid ${canAddToCart ? '#10b981' : '#374151'}`,
+                  background: canAddToCart ? '#022c22' : '#020617',
+                  color: canAddToCart ? '#a7f3d0' : '#4b5563',
+                  fontSize: '0.95rem',
+                  cursor: canAddToCart ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {addedToCart ? '✓ Added to cart' : needsSize ? 'Select a size' : 'Add to Cart'}
+              </button>
+
+              {canCustomize && (
                 <Link
                   href={`/studio?productId=${product.id}&assetId=${product.defaultAssetId}`}
                   style={{
                     padding: '10px 14px',
                     borderRadius: 999,
-                    border: '1px solid #10b981',
-                    background: '#022c22',
-                    color: '#a7f3d0',
-                    fontSize: '0.95rem',
+                    border: '1px solid #4b5563',
+                    background: '#111827',
+                    color: '#9ca3af',
+                    fontSize: '0.85rem',
                     textDecoration: 'none',
                     textAlign: 'center',
                   }}
                 >
                   Customize this design
                 </Link>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 999,
-                    border: '1px solid #374151',
-                    background: '#020617',
-                    color: '#4b5563',
-                    fontSize: '0.9rem',
-                    cursor: 'not-allowed',
-                  }}
-                  title="Set a default asset for this product in the admin panel to enable customization."
-                >
-                  No default design available
-                </button>
               )}
-
-              {/* Optional: direct add-to-cart later, once you have a non-Studio path */}
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '0.8rem',
-                  color: '#6b7280',
-                }}
-              >
-                To purchase this item, start by customizing it in Studio, then
-                add it to your cart from there.
-              </p>
             </div>
 
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>
+              {canCustomize
+                ? 'Add to cart with the original design, or use Customize to adjust placement.'
+                : 'Add to cart to purchase with the original design.'}
+            </p>
           </div>
         </div>
       </div>
