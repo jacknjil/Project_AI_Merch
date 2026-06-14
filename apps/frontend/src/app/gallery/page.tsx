@@ -101,7 +101,7 @@ export default function GalleryPage() {
     return result;
   }, [assets, activeNiche, activeStyle]);
 
-  function handleFilterChange(key: 'niche' | 'style', value: string | null) {
+  function handleFilterChange(key: string, value: string | null) {
     if (key === 'niche') setActiveNiche(value);
     else setActiveStyle(value);
   }
