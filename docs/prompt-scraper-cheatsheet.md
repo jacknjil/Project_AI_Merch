@@ -1,6 +1,7 @@
 # Prompt Scraper — Quick Reference
 
 **All commands run from `tools/` directory:**
+
 ```bash
 cd ~/Project_AI_Merch/tools
 ```
@@ -9,13 +10,13 @@ cd ~/Project_AI_Merch/tools
 
 ## Scrapers
 
-| Scraper | Source | Method | Notes |
-|---------|--------|--------|-------|
-| `civitai` | Civitai REST API | HTTP | Fast, reliable, paginated |
-| `lexica` | Lexica.art API | HTTP | Returns 500 intermittently |
-| `prompthero` | PromptHero | Playwright | Most prompts gated behind login; ~5-10 per run |
-| `openart` | OpenArt internal API | Playwright | Internal JSON feed via page; ~10-20 per run |
-| `trends` | Redbubble trending | Playwright | Niche signals only, no prompts |
+| Scraper      | Source               | Method     | Notes                                          |
+| ------------ | -------------------- | ---------- | ---------------------------------------------- |
+| `civitai`    | Civitai REST API     | HTTP       | Fast, reliable, paginated                      |
+| `lexica`     | Lexica.art API       | HTTP       | Returns 500 intermittently                     |
+| `prompthero` | PromptHero           | Playwright | Most prompts gated behind login; ~5-10 per run |
+| `openart`    | OpenArt internal API | Playwright | Internal JSON feed via page; ~10-20 per run    |
+| `trends`     | Redbubble trending   | Playwright | Niche signals only, no prompts                 |
 
 ---
 
@@ -44,7 +45,9 @@ python -m prompt_scraper scrape all
 
 ```bash
 python -m prompt_scraper status
+
 ```
+
 Shows total prompts, by-source counts, unused vs exported, top niches, and any trend signals.
 
 ---
