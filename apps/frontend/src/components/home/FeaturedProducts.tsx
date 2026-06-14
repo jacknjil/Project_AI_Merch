@@ -49,7 +49,7 @@ export function FeaturedProducts() {
           {!loading && !error && products.map((p) => (
             <Link
               key={p.id}
-              href={`/products/${p.id}`}
+              href={`/shop/${p.id}`}
               className="min-w-[160px] flex-shrink-0 overflow-hidden rounded-lg border border-white/8 bg-background transition-colors hover:border-white/20"
             >
               <div className="relative h-[120px] bg-white/5">
