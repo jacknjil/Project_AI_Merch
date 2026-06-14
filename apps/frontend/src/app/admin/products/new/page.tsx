@@ -22,6 +22,7 @@ export default function NewProductPage() {
   const [featured, setFeatured] = useState(false);
   const [niche, setNiche] = useState('');
   const [style, setStyle] = useState('');
+  const [productCategory, setProductCategory] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export default function NewProductPage() {
         defaultAssetId: defaultAssetId.trim() || null,
         niche: niche.trim() || null,
         style: style.trim() || null,
+        product_category: productCategory || null,
         active,
         featured,
         createdAt: serverTimestamp(),
@@ -217,6 +219,37 @@ export default function NewProductPage() {
             />
             <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
               Used for gallery and shop filtering.
+            </p>
+          </div>
+
+          {/* Product category */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Product type (optional)
+            </label>
+            <select
+              value={productCategory}
+              onChange={(e) => setProductCategory(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: productCategory ? '#e5e7eb' : '#6b7280',
+              }}
+            >
+              <option value="">— select type —</option>
+              <option value="shirt">Shirt</option>
+              <option value="hoodie">Hoodie</option>
+              <option value="tote">Tote Bag</option>
+              <option value="mug">Mug</option>
+              <option value="cup">Cup</option>
+            </select>
+            <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
+              Enables the Type filter in the shop and size selection for apparel.
             </p>
           </div>
 

@@ -15,6 +15,7 @@ type ProductState = {
   defaultAssetId: string;
   niche: string;
   style: string;
+  product_category: string;
   active: boolean;
   featured: boolean;
 };
@@ -62,6 +63,7 @@ export default function EditProductPage() {
           defaultAssetId: data.defaultAssetId ?? '',
           niche: data.niche ?? '',
           style: data.style ?? '',
+          product_category: data.product_category ?? '',
           active: typeof data.active === 'boolean' ? data.active : true,
           featured: typeof data.featured === 'boolean' ? data.featured : false,
         };
@@ -112,6 +114,7 @@ export default function EditProductPage() {
         defaultAssetId: product.defaultAssetId.trim() || null,
         niche: product.niche.trim() || null,
         style: product.style.trim() || null,
+        product_category: product.product_category || null,
         active: product.active,
         featured: product.featured,
         updatedAt: serverTimestamp(),
@@ -347,6 +350,37 @@ export default function EditProductPage() {
             />
             <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
               Used for gallery and shop filtering.
+            </p>
+          </div>
+
+          {/* Product category */}
+          <div>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontSize: '0.9rem' }}
+            >
+              Product type (optional)
+            </label>
+            <select
+              value={product.product_category}
+              onChange={(e) => handleFieldChange('product_category', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #4b5563',
+                background: '#020617',
+                color: product.product_category ? '#e5e7eb' : '#6b7280',
+              }}
+            >
+              <option value="">— select type —</option>
+              <option value="shirt">Shirt</option>
+              <option value="hoodie">Hoodie</option>
+              <option value="tote">Tote Bag</option>
+              <option value="mug">Mug</option>
+              <option value="cup">Cup</option>
+            </select>
+            <p style={{ margin: 0, marginTop: 4, fontSize: '0.8rem', color: '#9ca3af' }}>
+              Enables the Type filter in the shop and size selection for apparel.
             </p>
           </div>
 
