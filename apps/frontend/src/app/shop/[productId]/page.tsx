@@ -391,35 +391,6 @@ export default function ProductDetailPage() {
               </p>
             </div>
 
-            {/* Debug info (optional, nice during development) */}
-            <div
-              style={{
-                marginTop: 12,
-                padding: 8,
-                borderRadius: 8,
-                border: '1px dashed #1f2937',
-                background: '#020617',
-                fontSize: '0.75rem',
-                color: '#6b7280',
-              }}
-            >
-              <div>
-                Product ID: <code>{product.id}</code>
-              </div>
-              <div>
-                defaultAssetId:{' '}
-                <code>{product.defaultAssetId ?? '(none)'}</code>
-              </div>
-              <div
-                style={{
-                  marginTop: 4,
-                  wordBreak: 'break-all',
-                }}
-              >
-                mockupImageUrl:{' '}
-                <code>{product.mockupImageUrl ?? '(none)'}</code>
-              </div>
-            </div>
           </div>
         </div>
       </div>

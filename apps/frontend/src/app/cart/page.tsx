@@ -309,18 +309,6 @@ export default function CartPage() {
                         : 'Not set'}
                     </p>
 
-                    <p
-                      style={{
-                        margin: 0,
-                        marginTop: 8,
-                        fontSize: '0.8rem',
-                        color: '#6b7280',
-                      }}
-                    >
-                      productId: <code>{item.productId}</code>
-                      <br />
-                      assetId: <code>{item.assetId ?? '(none)'}</code>
-                    </p>
 
                     <button
                       onClick={() => handleRemoveItem(index)}
