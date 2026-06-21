@@ -27,4 +27,7 @@ export interface Asset {
   source?: string;
   createdAt?: number;
   published?: boolean;
+  productCategory?: string;
+  printifyProductId?: string;
+  printifyStatus?: string;
 }

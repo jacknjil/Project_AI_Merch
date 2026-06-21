@@ -19,6 +19,42 @@ export default function AdminAssetsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  const publishToPrintify = async (asset: Asset) => {
+    if (!asset.imageUrl) return;
+    setPublishingId(asset.id);
+    setRowErrors((prev) => ({ ...prev, [asset.id]: '' }));
+    try {
+      const res = await fetch('/api/publish-to-printify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetId: asset.id,
+          imageUrl: asset.imageUrl,
+          title: asset.title,
+          productCategory: asset.productCategory ?? 'shirt',
+          niche: asset.niche,
+        }),
+      });
+      const data = await res.json() as { error?: string; printifyProductId?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Publish failed');
+      setAssets((prev) =>
+        prev.map((a) =>
+          a.id === asset.id
+            ? { ...a, printifyProductId: data.printifyProductId, printifyStatus: 'published' }
+            : a,
+        ),
+      );
+    } catch (err) {
+      setRowErrors((prev) => ({
+        ...prev,
+        [asset.id]: err instanceof Error ? err.message : 'Publish failed',
+      }));
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -148,6 +184,20 @@ export default function AdminAssetsPage() {
                 >
                   {isPublished ? 'Hide' : 'Publish'}
                 </button>
+
+                {asset.printifyStatus === 'published' ? (
+                  <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-400">
+                    On Etsy
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => publishToPrintify(asset)}
+                    disabled={publishingId === asset.id || !asset.imageUrl}
+                    className="shrink-0 rounded-md border border-violet-500/30 px-3 py-1 text-xs font-medium text-violet-400 transition-colors hover:border-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {publishingId === asset.id ? 'Publishing…' : 'Publish to Printify'}
+                  </button>
+                )}
               </div>
             );
           })}

@@ -108,8 +108,50 @@ export async function removeBackground(imageUrl: string): Promise<string> {
     throw new Error(`Recraft removeBackground error ${res.status}: ${text}`);
   }
 
-  const json = await res.json() as { data?: RecraftImage[] };
-  const url = json.data?.[0]?.url;
-  if (!url) throw new Error('Recraft removeBackground returned no URL');
+  const json = await res.json() as Record<string, unknown>;
+  console.log('removeBackground raw response:', JSON.stringify(json).slice(0, 300));
+
+  // Try { data: [{ url }] } then { image: { url } }
+  const url =
+    (json.data as RecraftImage[] | undefined)?.[0]?.url ??
+    (json.image as RecraftImage | undefined)?.url;
+  if (!url) throw new Error(`Recraft removeBackground no URL. Body: ${JSON.stringify(json).slice(0, 200)}`);
   return url;
+}
+
+export async function crispUpscale(imageUrl: string): Promise<string> {
+  const apiKey = process.env.RECRAFT_API_KEY;
+  if (!apiKey) throw new Error('RECRAFT_API_KEY is not set');
+
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error(`Failed to fetch image for upscale: ${imgRes.status}`);
+  const imgBytes = await imgRes.arrayBuffer();
+
+  const form = new FormData();
+  form.append('file', new Blob([imgBytes], { type: 'image/png' }), 'image.png');
+  form.append('response_format', 'url');
+
+  const res = await fetch(`${RECRAFT_BASE}/images/crispUpscale`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Recraft crispUpscale error ${res.status}: ${text}`);
+  }
+
+  const json = await res.json() as Record<string, unknown>;
+  console.log('crispUpscale raw response:', JSON.stringify(json).slice(0, 300));
+
+  // Try { data: [{ url }] } (generation-style envelope)
+  const dataUrl = (json.data as RecraftImage[] | undefined)?.[0]?.url;
+  if (dataUrl) return dataUrl;
+
+  // Try { image: { url } } (upscale/transform-style envelope)
+  const imageUrl2 = (json.image as RecraftImage | undefined)?.url;
+  if (imageUrl2) return imageUrl2;
+
+  throw new Error(`Recraft crispUpscale no URL. Body: ${JSON.stringify(json).slice(0, 200)}`);
 }
