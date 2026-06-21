@@ -155,6 +155,22 @@ export async function createPrintifyProduct(
   return res.json() as Promise<PrintifyProduct>;
 }
 
+export async function getPrintifyMockupUrl(productId: string): Promise<string | null> {
+  const { apiKey, shopId } = getCredentials();
+
+  const res = await fetch(
+    `${PRINTIFY_BASE}/shops/${shopId}/products/${productId}.json`,
+    { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } },
+  );
+
+  if (!res.ok) return null;
+
+  const data = await res.json() as { images?: { src: string; is_default?: boolean }[] };
+  const images = data.images ?? [];
+  const defaultImg = images.find((i) => i.is_default) ?? images[0];
+  return defaultImg?.src ?? null;
+}
+
 export async function publishPrintifyProduct(productId: string): Promise<void> {
   const { apiKey, shopId } = getCredentials();
 

@@ -5,6 +5,7 @@ import {
   uploadImageToPrintify,
   createPrintifyProduct,
   publishPrintifyProduct,
+  getPrintifyMockupUrl,
 } from '@/lib/printify';
 
 export const runtime = 'nodejs';
@@ -74,10 +75,14 @@ export async function POST(req: NextRequest) {
       console.warn('Printify publish skipped:', publishWarning);
     }
 
-    // 6. Update Firestore asset with Printify product ID
+    // 6. Fetch Printify mockup URL (non-fatal)
+    const mockupUrl = await getPrintifyMockupUrl(product.id).catch(() => null);
+
+    // 7. Update Firestore asset
     await adminDb.collection('assets').doc(String(assetId)).update({
       printifyProductId: product.id,
       printifyStatus,
+      ...(mockupUrl ? { mockupUrl } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
 

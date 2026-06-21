@@ -7,21 +7,10 @@ import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
+import { useCart } from '@/context/CartContext';
 
-const CART_KEY = 'aiMerchCart';
 const APPAREL = new Set(['shirt', 'hoodie', 'tote']);
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL'];
-
-type CartItem = {
-  productId: string;
-  productName: string;
-  price?: number;
-  assetId?: string;
-  assetTitle?: string;
-  mockupImageUrl?: string | null;
-  quantity: number;
-  size?: string;
-};
 
 type ProductDoc = {
   id: string;
@@ -34,6 +23,12 @@ type ProductDoc = {
   product_category?: string;
 };
 
+function resolveTitle(title: string | undefined, niche: string | undefined, category: string | undefined): string {
+  if (title && title !== 'AI generated design') return title;
+  const parts = [niche, category].filter(Boolean).map((s) => s!.charAt(0).toUpperCase() + s!.slice(1));
+  return parts.length > 0 ? parts.join(' ') + ' Design' : 'Untitled';
+}
+
 function categoryLabel(raw: string): string {
   const map: Record<string, string> = {
     shirt: 'Shirt',
@@ -45,32 +40,16 @@ function categoryLabel(raw: string): string {
   return map[raw.toLowerCase()] ?? raw;
 }
 
-function readCart(): CartItem[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(CART_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeCart(items: CartItem[]): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(CART_KEY, JSON.stringify(items));
-}
-
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { addItem } = useCart();
   const productId = params?.productId as string;
 
   const [product, setProduct] = useState<ProductDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>('M');
   const [addedToCart, setAddedToCart] = useState(false);
 
   useEffect(() => {
@@ -80,7 +59,7 @@ export default function ProductDetailPage() {
         setError(null);
         setLoading(true);
 
-        const ref = doc(db, 'products', productId);
+        const ref = doc(db, 'assets', productId);
         const snap = await getDoc(ref);
 
         if (!snap.exists()) {
@@ -91,17 +70,17 @@ export default function ProductDetailPage() {
 
         const data = snap.data() as any;
         const resolvedMockupUrl: string | null =
-          data.mockupImageUrl ?? data.mockup_image_url ?? data.imageUrl ?? null;
+          data.mockupUrl ?? data.imageUrl ?? null;
 
         setProduct({
           id: snap.id,
-          name: data.name ?? 'Unnamed product',
+          name: resolveTitle(data.title, data.niche, data.productCategory ?? data.product_category),
           description: data.description ?? '',
-          price: typeof data.price === 'number' ? data.price : undefined,
-          active: typeof data.active === 'boolean' ? data.active : true,
+          price: typeof data.price === 'number' ? data.price : 25,
+          active: true,
           mockupImageUrl: resolvedMockupUrl,
-          defaultAssetId: data.defaultAssetId ?? null,
-          product_category: data.product_category ?? '',
+          defaultAssetId: null,
+          product_category: data.productCategory ?? data.product_category ?? '',
         });
       } catch (err: any) {
         setError(err?.message || 'Failed to load product.');
@@ -115,17 +94,13 @@ export default function ProductDetailPage() {
 
   function handleAddToCart() {
     if (!product) return;
-    const item: CartItem = {
-      productId: product.id,
-      productName: product.name,
-      price: product.price,
-      assetId: undefined,
-      assetTitle: 'Original design',
+    addItem({
+      id: product.id,
+      name: product.name,
+      price: product.price ?? 25,
       mockupImageUrl: product.mockupImageUrl,
-      quantity: 1,
-      size: selectedSize ?? undefined,
-    };
-    writeCart([...readCart(), item]);
+      product_category: product.product_category,
+    } as any);
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
   }

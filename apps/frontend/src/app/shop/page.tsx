@@ -3,7 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import FilterBar from '@/components/FilterBar';
 
@@ -12,13 +12,18 @@ type ProductDoc = {
   name: string;
   description?: string;
   price?: number;
-  active?: boolean;
   mockupImageUrl?: string | null;
-  defaultAssetId?: string | null;
   niche?: string;
   style?: string;
   product_category?: string;
+  printifyProductId?: string;
 };
+
+function resolveTitle(title: string | undefined, niche: string | undefined, category: string | undefined): string {
+  if (title && title !== 'AI generated design') return title;
+  const parts = [niche, category].filter(Boolean).map((s) => s!.charAt(0).toUpperCase() + s!.slice(1));
+  return parts.length > 0 ? parts.join(' ') + ' Design' : 'Untitled';
+}
 
 function categoryLabel(raw: string): string {
   const map: Record<string, string> = {
@@ -45,33 +50,27 @@ export default function ShopPage() {
         setError(null);
         setLoading(true);
 
-        const productsCol = collection(db, 'products');
         const q = query(
-          productsCol,
-          where('active', '==', true),
-          orderBy('name', 'asc'),
+          collection(db, 'assets'),
+          where('printifyStatus', 'in', ['published', 'created']),
         );
         const snap = await getDocs(q);
 
         const items: ProductDoc[] = snap.docs.map((doc) => {
           const data = doc.data() as any;
-          const resolvedMockupUrl: string | null =
-            data.mockupImageUrl ??
-            data.mockup_image_url ??
-            data.imageUrl ??
-            null;
+          const mockupImageUrl: string | null =
+            data.mockupUrl ?? data.imageUrl ?? null;
 
           return {
             id: doc.id,
-            name: data.name ?? 'Unnamed product',
+            name: resolveTitle(data.title, data.niche, data.productCategory ?? data.product_category),
             description: data.description ?? '',
-            price: typeof data.price === 'number' ? data.price : undefined,
-            active: typeof data.active === 'boolean' ? data.active : true,
-            mockupImageUrl: resolvedMockupUrl,
-            defaultAssetId: data.defaultAssetId ?? null,
+            price: typeof data.price === 'number' ? data.price : 25,
+            mockupImageUrl,
             niche: data.niche ?? '',
             style: data.style ?? '',
-            product_category: data.product_category ?? '',
+            product_category: data.productCategory ?? data.product_category ?? '',
+            printifyProductId: data.printifyProductId ?? '',
           };
         });
 
