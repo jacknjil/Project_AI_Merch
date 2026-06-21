@@ -45,7 +45,7 @@ export default function GalleryPage() {
         const q = query(
           collection(db, 'assets'),
           orderBy('createdAt', 'desc'),
-          limit(60)
+          limit(200)
         );
 
         const snap = await getDocs(q);
