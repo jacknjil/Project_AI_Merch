@@ -31,4 +31,5 @@ export interface Asset {
   productCategory?: string;
   printifyProductId?: string;
   printifyStatus?: string;
+  mockupUrl?: string;
 }

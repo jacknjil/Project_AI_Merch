@@ -20,6 +20,7 @@ export default function AdminAssetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [refreshingMockupId, setRefreshingMockupId] = useState<string | null>(null);
 
   const publishToPrintify = async (asset: Asset) => {
     if (!asset.imageUrl) return;
@@ -53,6 +54,33 @@ export default function AdminAssetsPage() {
       }));
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const refreshMockup = async (asset: Asset) => {
+    if (!asset.printifyProductId) return;
+    setRefreshingMockupId(asset.id);
+    setRowErrors((prev) => ({ ...prev, [asset.id]: '' }));
+    try {
+      const res = await fetch('/api/refresh-mockup', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: asset.id, printifyProductId: asset.printifyProductId }),
+      });
+      const data = await res.json() as { error?: string; mockupUrl?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Refresh failed');
+      setAssets((prev) =>
+        prev.map((a) =>
+          a.id === asset.id ? { ...a, mockupUrl: data.mockupUrl } : a,
+        ),
+      );
+    } catch (err) {
+      setRowErrors((prev) => ({
+        ...prev,
+        [asset.id]: err instanceof Error ? err.message : 'Refresh failed',
+      }));
+    } finally {
+      setRefreshingMockupId(null);
     }
   };
 
@@ -196,6 +224,16 @@ export default function AdminAssetsPage() {
                     className="shrink-0 rounded-md border border-violet-500/30 px-3 py-1 text-xs font-medium text-violet-400 transition-colors hover:border-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {publishingId === asset.id ? 'Publishing…' : 'Publish to Printify'}
+                  </button>
+                )}
+
+                {asset.printifyProductId && !asset.mockupUrl && (
+                  <button
+                    onClick={() => refreshMockup(asset)}
+                    disabled={refreshingMockupId === asset.id}
+                    className="shrink-0 rounded-md border border-sky-500/30 px-3 py-1 text-xs font-medium text-sky-400 transition-colors hover:border-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {refreshingMockupId === asset.id ? 'Refreshing…' : 'Refresh Mockup'}
                   </button>
                 )}
               </div>
