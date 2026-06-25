@@ -77,7 +77,7 @@ export default function ProductDetailPage() {
           name: resolveTitle(data.title, data.niche, data.productCategory ?? data.product_category),
           description: data.description ?? '',
           price: typeof data.price === 'number' ? data.price : 25,
-          active: true,
+          active: data.active ?? true,
           mockupImageUrl: resolvedMockupUrl,
           defaultAssetId: null,
           product_category: data.productCategory ?? data.product_category ?? '',
@@ -94,13 +94,13 @@ export default function ProductDetailPage() {
 
   function handleAddToCart() {
     if (!product) return;
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price ?? 25,
-      mockupImageUrl: product.mockupImageUrl,
-      product_category: product.product_category,
-    } as any);
+    addItem(
+      { id: product.id, name: product.name, price: product.price ?? 25,
+        mockupImageUrl: product.mockupImageUrl, product_category: product.product_category } as any,
+      1,
+      null,
+      selectedSize,
+    );
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
   }

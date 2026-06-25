@@ -7,11 +7,12 @@ export interface CartItem {
   product: Product;
   quantity: number;
   assetId?: string | null; // For customized items
+  size?: string | null;
 }
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (product: Product, quantity?: number, assetId?: string | null) => void;
+  addItem: (product: Product, quantity?: number, assetId?: string | null, size?: string | null) => void;
   removeItem: (productId: string, assetId?: string | null) => void;
   clearCart: () => void;
   cartCount: number;
@@ -55,14 +56,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [items, isInitialized]);
 
-  const addItem = (product: Product, quantity = 1, assetId: string | null = null) => {
+  const addItem = (product: Product, quantity = 1, assetId: string | null = null, size: string | null = null) => {
     setItems((prev) => {
-      // Check if item exists (matching product ID and asset ID)
-      const existingParams = assetId 
-        ? (item: CartItem) => item.product.id === product.id && item.assetId === assetId
-        : (item: CartItem) => item.product.id === product.id && !item.assetId;
-
-      const existingItemIndex = prev.findIndex(existingParams);
+      const existingItemIndex = prev.findIndex(
+        (item) =>
+          item.product.id === product.id &&
+          (item.assetId ?? null) === (assetId ?? null) &&
+          (item.size ?? null) === (size ?? null),
+      );
 
       if (existingItemIndex >= 0) {
         const newItems = [...prev];
@@ -70,7 +71,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return newItems;
       }
 
-      return [...prev, { product, quantity, assetId }];
+      return [...prev, { product, quantity, assetId, size }];
     });
     setIsOpen(true); // Open cart when adding item
   };

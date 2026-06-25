@@ -94,6 +94,7 @@ export function CartSheet() {
                     <h3 className="font-medium">{item.product.name}</h3>
                     <p className="text-sm text-gray-500">
                       Qty: {item.quantity}
+                      {item.size && <span className="ml-2 text-xs text-gray-400">· {item.size}</span>}
                       {item.assetId && (
                         <span className="block text-xs text-accent">
                           Customized

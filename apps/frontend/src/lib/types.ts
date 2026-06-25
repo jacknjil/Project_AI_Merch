@@ -14,6 +14,7 @@ export interface Product {
   niche?: string;
   style?: string;
   createdAt?: number;
+  product_category?: string;
 }
 
 export interface Asset {
