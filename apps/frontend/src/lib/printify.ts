@@ -47,8 +47,56 @@ export const PRINT_PROVIDER_IDS: Record<string, number> = {
 // Black S/M/L/XL variant IDs per category (Printify Choice, blueprint-specific)
 // Fetched from /v1/catalog/blueprints/{id}/print_providers/{prov}/variants.json
 const VARIANT_IDS: Record<string, number[]> = {
-  shirt: [18100, 18101, 18102, 18103], // Black S/M/L/XL — blueprint 12, provider 99
+  shirt:  [18100, 18101, 18102, 18103], // confirmed: blueprint 12, provider 99, Black S/M/L/XL
+  hoodie: [], // TODO: blueprint 92, provider 99, Black S/M/L/XL
+  tote:   [], // TODO: blueprint 77, provider 99, enabled variants
+  mug:    [], // TODO: blueprint 31, provider 27, enabled variants
+  cup:    [], // TODO: blueprint 1071, provider 27, enabled variants
 };
+
+const variantCache = new Map<string, number[]>();
+
+export async function fetchVariantIds(
+  blueprintId: number,
+  printProviderId: number,
+  category: string,
+): Promise<number[]> {
+  const cacheKey = `${blueprintId}-${printProviderId}`;
+  if (variantCache.has(cacheKey)) return variantCache.get(cacheKey)!;
+
+  const { apiKey } = getCredentials();
+  const res = await fetch(
+    `${PRINTIFY_BASE}/catalog/blueprints/${blueprintId}/print_providers/${printProviderId}/variants.json`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+  );
+
+  if (!res.ok) {
+    console.warn(`fetchVariantIds: catalog API returned ${res.status}, using fallback`);
+    return VARIANT_IDS[category] ?? VARIANT_IDS['shirt'];
+  }
+
+  const data = await res.json() as { variants: { id: number; title: string; is_enabled: boolean }[] };
+
+  const isApparel = ['shirt', 'hoodie'].includes(category);
+  let ids: number[];
+
+  if (isApparel) {
+    const targets = ['Black / S', 'Black / M', 'Black / L', 'Black / XL'];
+    ids = targets
+      .map(t => data.variants.find(v => v.title === t && v.is_enabled)?.id)
+      .filter((id): id is number => id !== undefined);
+  } else {
+    ids = data.variants.filter(v => v.is_enabled).slice(0, 4).map(v => v.id);
+  }
+
+  if (ids.length === 0) {
+    console.warn(`fetchVariantIds: no matching variants for blueprint ${blueprintId}, using fallback`);
+    return VARIANT_IDS[category] ?? VARIANT_IDS['shirt'];
+  }
+
+  variantCache.set(cacheKey, ids);
+  return ids;
+}
 
 export interface PrintifyImageUpload {
   id: string;
@@ -110,7 +158,7 @@ export async function createPrintifyProduct(
   const blueprintId = BLUEPRINT_IDS[category];
   const printProviderId = PRINT_PROVIDER_IDS[category];
 
-  const variantIds = VARIANT_IDS[category] ?? VARIANT_IDS['shirt'];
+  const variantIds = await fetchVariantIds(blueprintId, printProviderId, category);
   const variants = variantIds.map(id => ({ id, price: 2500, is_enabled: true }));
 
   const body = {
