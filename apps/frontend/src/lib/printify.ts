@@ -21,37 +21,37 @@ function authHeaders(apiKey: string) {
 const PRINT_AREA: Record<string, { width: number; height: number }> = {
   shirt:  { width: 3600, height: 4800 },
   hoodie: { width: 3600, height: 4800 },
-  tote:   { width: 4500, height: 4500 },
+  tote:   { width: 3600, height: 3600 },
   mug:    { width: 2550, height: 1110 },
   cup:    { width: 2790, height: 1200 },
 };
 
-// Printify blueprint IDs for the most common print partners
+// Printify blueprint IDs — verified against live catalog 2026-06-25
 export const BLUEPRINT_IDS: Record<string, number> = {
-  shirt:  12,   // Gildan 64000 Softstyle
-  hoodie: 92,   // Gildan 18500
-  tote:   77,   // Gildan Heavy Tote
-  mug:    31,   // Orca Coating 11oz mug
-  cup:    1071, // Orca Coating 15oz mug
+  shirt:  12,  // Gildan 64000 Softstyle
+  hoodie: 92,  // Gildan 18500
+  tote:   553, // Cotton Tote Bag (Fulfill Engine)
+  mug:    68,  // Mug 11oz (SPOKE Custom Products)
+  cup:    425, // Mug 15oz (SPOKE Custom Products)
 };
 
-// Default print provider per blueprint (Printify Choice = 99)
+// Print provider per blueprint — verified against live catalog 2026-06-25
 export const PRINT_PROVIDER_IDS: Record<string, number> = {
-  shirt:  99,
-  hoodie: 99,
-  tote:   99,
-  mug:    27,
-  cup:    27,
+  shirt:  99,  // Printify Choice
+  hoodie: 99,  // Printify Choice
+  tote:   217, // Fulfill Engine
+  mug:    1,   // SPOKE Custom Products
+  cup:    1,   // SPOKE Custom Products
 };
 
-// Black S/M/L/XL variant IDs per category (Printify Choice, blueprint-specific)
-// Fetched from /v1/catalog/blueprints/{id}/print_providers/{prov}/variants.json
+// Fallback variant IDs — fetched from live catalog 2026-06-25
+// Used when the catalog API is unavailable at publish time
 const VARIANT_IDS: Record<string, number[]> = {
-  shirt:  [18100, 18101, 18102, 18103], // confirmed: blueprint 12, provider 99, Black S/M/L/XL
-  hoodie: [], // TODO: blueprint 92, provider 99, Black S/M/L/XL
-  tote:   [], // TODO: blueprint 77, provider 99, enabled variants
-  mug:    [], // TODO: blueprint 31, provider 27, enabled variants
-  cup:    [], // TODO: blueprint 1071, provider 27, enabled variants
+  shirt:  [18100, 18101, 18102, 18103], // blueprint 12  / provider 99:  Black S/M/L/XL
+  hoodie: [34079, 34093, 34107, 34121], // blueprint 92  / provider 99:  Jet Black S/M/L/XL
+  tote:   [70603],                       // blueprint 553 / provider 217: One size / Black
+  mug:    [33719],                       // blueprint 68  / provider 1:   11oz
+  cup:    [62014],                       // blueprint 425 / provider 1:   15oz
 };
 
 const variantCache = new Map<string, number[]>();
@@ -75,18 +75,22 @@ export async function fetchVariantIds(
     return VARIANT_IDS[category] ?? VARIANT_IDS['shirt'];
   }
 
-  const data = await res.json() as { variants: { id: number; title: string; is_enabled: boolean }[] };
+  const data = await res.json() as { variants: { id: number; title: string }[] };
 
   const isApparel = ['shirt', 'hoodie'].includes(category);
   let ids: number[];
 
   if (isApparel) {
-    const targets = ['Black / S', 'Black / M', 'Black / L', 'Black / XL'];
+    // Shirts use "Black", hoodies use "Jet Black" — check both
+    const targets = ['Black / S', 'Black / M', 'Black / L', 'Black / XL',
+                     'Jet Black / S', 'Jet Black / M', 'Jet Black / L', 'Jet Black / XL'];
     ids = targets
-      .map(t => data.variants.find(v => v.title === t && v.is_enabled)?.id)
-      .filter((id): id is number => id !== undefined);
+      .map(t => data.variants.find(v => v.title === t)?.id)
+      .filter((id): id is number => id !== undefined)
+      .slice(0, 4);
   } else {
-    ids = data.variants.filter(v => v.is_enabled).slice(0, 4).map(v => v.id);
+    // Drinkware and totes: take first available variant(s)
+    ids = data.variants.slice(0, 4).map(v => v.id);
   }
 
   if (ids.length === 0) {
