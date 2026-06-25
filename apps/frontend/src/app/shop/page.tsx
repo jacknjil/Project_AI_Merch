@@ -3,7 +3,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import Image from 'next/image';
+import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import FilterBar from '@/components/FilterBar';
 
@@ -43,6 +44,7 @@ export default function ShopPage() {
   const [activeNiche, setActiveNiche] = useState<string | null>(null);
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'newest' | 'price-asc' | 'price-desc'>('newest');
 
   useEffect(() => {
     const load = async () => {
@@ -53,6 +55,9 @@ export default function ShopPage() {
         const q = query(
           collection(db, 'assets'),
           where('printifyStatus', 'in', ['published', 'created']),
+          orderBy('createdAt', 'desc'),
+          // Composite index required: printifyStatus + createdAt desc
+          // Firestore console provides creation link on first runtime error
         );
         const snap = await getDocs(q);
 
@@ -111,6 +116,13 @@ export default function ShopPage() {
     return result;
   }, [products, activeNiche, activeStyle, activeCategory]);
 
+  const sorted = useMemo(() => {
+    const base = [...filtered];
+    if (sortBy === 'price-asc') return base.sort((a, b) => (a.price ?? 25) - (b.price ?? 25));
+    if (sortBy === 'price-desc') return base.sort((a, b) => (b.price ?? 25) - (a.price ?? 25));
+    return base;
+  }, [filtered, sortBy]);
+
   function handleFilterChange(key: string, value: string | null) {
     if (key === 'niche') setActiveNiche(value);
     else if (key === 'style') setActiveStyle(value);
@@ -142,7 +154,18 @@ export default function ShopPage() {
         </header>
 
         {loading && (
-          <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>Loading products…</p>
+          <>
+            <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ borderRadius: 12, border: '1px solid #1f2937', background: '#020617', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ aspectRatio: '1/1', borderRadius: 10, background: '#111827', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                  <div style={{ height: 14, borderRadius: 4, background: '#1f2937', width: '60%' }} />
+                  <div style={{ height: 12, borderRadius: 4, background: '#1f2937', width: '40%' }} />
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {error && (
@@ -167,6 +190,19 @@ export default function ShopPage() {
               onChange={handleFilterChange}
             />
 
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Sort</span>
+              {(['newest', 'price-asc', 'price-desc'] as const).map((s) => (
+                <button key={s} type="button" onClick={() => setSortBy(s)}
+                  style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                    border: `1px solid ${sortBy === s ? '#06b6d4' : '#4b5563'}`,
+                    background: sortBy === s ? '#0c2a31' : '#1f2937',
+                    color: sortBy === s ? '#a5f3fc' : '#9ca3af' }}>
+                  {s === 'newest' ? 'Newest' : s === 'price-asc' ? 'Price ↑' : 'Price ↓'}
+                </button>
+              ))}
+            </div>
+
             {filtered.length === 0 && (
               <p style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
                 No products match the selected filters.
@@ -180,7 +216,7 @@ export default function ShopPage() {
                 gap: 16,
               }}
             >
-              {filtered.map((p) => {
+              {sorted.map((p) => {
                 const priceDisplay =
                   typeof p.price === 'number' ? `$${p.price.toFixed(2)}` : 'Price TBA';
 
@@ -204,32 +240,20 @@ export default function ShopPage() {
                         overflow: 'hidden',
                         background: '#020617',
                         aspectRatio: '1 / 1',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        position: 'relative',
                       }}
                     >
                       {p.mockupImageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={p.mockupImageUrl}
                           alt={p.name}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            display: 'block',
-                          }}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                          style={{ objectFit: 'cover' }}
                         />
                       ) : (
-                        <span
-                          style={{
-                            fontSize: '0.8rem',
-                            color: '#6b7280',
-                            textAlign: 'center',
-                            padding: 8,
-                          }}
-                        >
+                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', fontSize: '0.8rem', color: '#6b7280', textAlign: 'center', padding: 8 }}>
                           No image yet
                         </span>
                       )}

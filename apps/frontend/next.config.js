@@ -20,6 +20,8 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'placehold.co', // Google Auth profiles
       },
+      { protocol: 'https', hostname: 'images-api.printify.com' },
+      { protocol: 'https', hostname: 'cdn.printify.com' },
     ],
   },
   experimental: {
