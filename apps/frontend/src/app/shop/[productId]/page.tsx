@@ -7,8 +7,6 @@ import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
-import { useCart } from '@/context/CartContext';
-
 const APPAREL = new Set(['shirt', 'hoodie', 'tote']);
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL'];
 
@@ -43,7 +41,6 @@ function categoryLabel(raw: string): string {
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { addItem } = useCart();
   const productId = params?.productId as string;
 
   const [product, setProduct] = useState<ProductDoc | null>(null);
@@ -94,13 +91,54 @@ export default function ProductDetailPage() {
 
   function handleAddToCart() {
     if (!product) return;
-    addItem(
-      { id: product.id, name: product.name, price: product.price ?? 25,
-        mockupImageUrl: product.mockupImageUrl, product_category: product.product_category } as any,
-      1,
-      null,
-      selectedSize,
-    );
+
+    const CART_KEY = 'aiMerchCart';
+    type FlatCartItem = {
+      productId: string;
+      productName: string;
+      price: number;
+      assetId?: string;
+      assetTitle?: string;
+      mockupImageUrl?: string | null;
+      quantity: number;
+      size?: string | null;
+    };
+
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(CART_KEY) : null;
+      const existing: FlatCartItem[] = raw ? (JSON.parse(raw) as FlatCartItem[]) : [];
+
+      const matchIdx = existing.findIndex(
+        (i) => i.productId === product.id && (i.size ?? null) === (selectedSize ?? null),
+      );
+
+      let updated: FlatCartItem[];
+      if (matchIdx >= 0) {
+        updated = existing.map((i, idx) =>
+          idx === matchIdx ? { ...i, quantity: i.quantity + 1 } : i,
+        );
+      } else {
+        updated = [
+          ...existing,
+          {
+            productId: product.id,
+            productName: product.name,
+            price: product.price ?? 25,
+            mockupImageUrl: product.mockupImageUrl ?? null,
+            assetTitle: product.name,
+            quantity: 1,
+            size: selectedSize,
+          },
+        ];
+      }
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(CART_KEY, JSON.stringify(updated));
+      }
+    } catch {
+      // localStorage unavailable
+    }
+
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
   }
@@ -309,22 +347,35 @@ export default function ProductDetailPage() {
 
             {/* Actions */}
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={!canAddToCart}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: 999,
-                  border: `1px solid ${canAddToCart ? '#10b981' : '#374151'}`,
-                  background: canAddToCart ? '#022c22' : '#020617',
-                  color: canAddToCart ? '#a7f3d0' : '#4b5563',
-                  fontSize: '0.95rem',
-                  cursor: canAddToCart ? 'pointer' : 'not-allowed',
-                }}
-              >
-                {addedToCart ? '✓ Added to cart' : needsSize ? 'Select a size' : 'Add to Cart'}
-              </button>
+              {addedToCart ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button type="button" disabled style={{
+                    padding: '10px 14px', borderRadius: 999,
+                    border: '1px solid #10b981', background: '#022c22',
+                    color: '#a7f3d0', fontSize: '0.95rem', cursor: 'not-allowed',
+                  }}>
+                    ✓ Added to cart
+                  </button>
+                  <Link href="/cart" style={{
+                    padding: '8px 14px', borderRadius: 999, textAlign: 'center',
+                    border: '1px solid #4b5563', background: '#111827',
+                    color: '#9ca3af', fontSize: '0.85rem', textDecoration: 'none',
+                  }}>
+                    View cart →
+                  </Link>
+                </div>
+              ) : (
+                <button type="button" onClick={handleAddToCart} disabled={!canAddToCart}
+                  style={{
+                    padding: '10px 14px', borderRadius: 999,
+                    border: `1px solid ${canAddToCart ? '#10b981' : '#374151'}`,
+                    background: canAddToCart ? '#022c22' : '#020617',
+                    color: canAddToCart ? '#a7f3d0' : '#4b5563',
+                    fontSize: '0.95rem', cursor: canAddToCart ? 'pointer' : 'not-allowed',
+                  }}>
+                  {needsSize ? 'Select a size' : 'Add to Cart'}
+                </button>
+              )}
 
               {canCustomize && (
                 <Link

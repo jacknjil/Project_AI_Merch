@@ -12,6 +12,7 @@ type CheckoutItemPayload = {
   price: number;
   mockupImageUrl?: string | null;
   quantity: number;
+  size?: string;
 
   // optional legacy fields we might still see:
   product?: any;
@@ -73,15 +74,17 @@ export async function POST(req: NextRequest) {
           unit_amount,
           product_data: {
             name: item.productName ?? item.product?.name ?? 'Product',
-            description: item.assetId
-              ? `Customized (Asset: ${item.assetId})`
-              : undefined,
+            description: [
+              item.size ? `Size: ${item.size}` : null,
+              item.assetId ? `Design: ${item.assetId}` : null,
+            ].filter(Boolean).join(' · ') || undefined,
             images,
             metadata: {
               assetId: item.assetId ?? '',
               productId: item.productId ?? '',
               cartItemId: item.id ?? '',
               assetTitle: item.assetTitle ?? '',
+              size: item.size ?? '',
             },
           },
         },
