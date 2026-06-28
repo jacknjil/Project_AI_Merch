@@ -17,15 +17,6 @@ function authHeaders(apiKey: string) {
   };
 }
 
-// Print area dimensions per product category (pixels at 300 DPI)
-const PRINT_AREA: Record<string, { width: number; height: number }> = {
-  shirt:  { width: 3600, height: 4800 },
-  hoodie: { width: 3600, height: 4800 },
-  tote:   { width: 3600, height: 3600 },
-  mug:    { width: 2550, height: 1110 },
-  cup:    { width: 2790, height: 1200 },
-};
-
 // Printify blueprint IDs — verified against live catalog 2026-06-25
 export const BLUEPRINT_IDS: Record<string, number> = {
   shirt:  12,  // Gildan 64000 Softstyle
@@ -120,13 +111,14 @@ export async function uploadImageToPrintify(
 ): Promise<PrintifyImageUpload> {
   const { apiKey } = getCredentials();
 
-  // Fetch image and convert to PNG — Printify rejects WebP
+  // Fetch server-side — Printify's servers are blocked from img.recraft.ai (CDN bot protection).
+  // Convert to JPEG 80% quality: reduces the 10MB upscaled WebP to ~2-3MB before base64 encoding.
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) throw new Error(`Failed to fetch image for Printify upload: ${imgRes.status}`);
   const imgBytes = await imgRes.arrayBuffer();
-  const pngBuffer = await sharp(Buffer.from(imgBytes)).png().toBuffer();
-  const base64 = pngBuffer.toString('base64');
-  const safeFileName = fileName.replace(/\.[^.]+$/, '') + '.png';
+  const jpegBuffer = await sharp(Buffer.from(imgBytes)).jpeg({ quality: 80 }).toBuffer();
+  const base64 = jpegBuffer.toString('base64');
+  const safeFileName = fileName.replace(/\.[^.]+$/, '') + '.jpg';
 
   const res = await fetch(`${PRINTIFY_BASE}/uploads/images.json`, {
     method: 'POST',
