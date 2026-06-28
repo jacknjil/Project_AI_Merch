@@ -199,20 +199,33 @@ export async function createPrintifyProduct(
   return res.json() as Promise<PrintifyProduct>;
 }
 
-export async function getPrintifyMockupUrl(productId: string): Promise<string | null> {
+export async function getPrintifyMockupUrl(
+  productId: string,
+  { retries = 5, initialDelayMs = 5000 }: { retries?: number; initialDelayMs?: number } = {},
+): Promise<string | null> {
   const { apiKey, shopId } = getCredentials();
 
-  const res = await fetch(
-    `${PRINTIFY_BASE}/shops/${shopId}/products/${productId}.json`,
-    { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } },
-  );
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, initialDelayMs * attempt));
+    }
 
-  if (!res.ok) return null;
+    const res = await fetch(
+      `${PRINTIFY_BASE}/shops/${shopId}/products/${productId}.json`,
+      { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } },
+    );
 
-  const data = await res.json() as { images?: { src: string; is_default?: boolean }[] };
-  const images = data.images ?? [];
-  const defaultImg = images.find((i) => i.is_default) ?? images[0];
-  return defaultImg?.src ?? null;
+    if (!res.ok) return null;
+
+    const data = await res.json() as { images?: { src: string; is_default?: boolean }[] };
+    const images = data.images ?? [];
+    const defaultImg = images.find((i) => i.is_default) ?? images[0];
+    const url = defaultImg?.src ?? null;
+
+    if (url) return url;
+  }
+
+  return null;
 }
 
 export async function publishPrintifyProduct(productId: string): Promise<void> {

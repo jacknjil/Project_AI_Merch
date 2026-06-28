@@ -1,4 +1,6 @@
-#Antigravity Agent: Skills & Execution Manual
+# Antigravity Agent
+
+Skills & Execution Manual
 
 Welcome to the **Project_AI_Merch** skill directory. This manual ensures that the Agent operates with engineering discipline, security, and architectural awareness.
 
