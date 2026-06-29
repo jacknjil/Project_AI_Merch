@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI-powered e-commerce platform for merchandise generation and sales. Customers can generate AI artwork (DALL-E), apply it to merchandise mockups, and purchase products. The active app lives in `apps/frontend/`.
 
+## Cost Discipline
+
+Keep per-session token spend lean (target ~$8–12; flag at $15+):
+
+- **Model:** Default to **Sonnet**. Escalate to Opus (`/model opus`) only for genuinely hard work — multi-file refactors, architecture, gnarly debugging. Short, mechanical turns (CSV/sheet edits, status checks, single-line fixes, lookups) belong on Sonnet.
+- **Reads:** Consult **File Cheat-Sheets** (below) before opening a summarized file; open the file only for the exact lines you'll change. Never re-`Read` `MEMORY.md` — it is auto-injected into context every session. Don't read full CSVs; grep or read ranges.
+- **When a file shows up as a repeat-read across sessions,** add a summary to File Cheat-Sheets instead of re-reading it.
+
 ## Commands
 
 All commands run from `apps/frontend/`:
@@ -51,6 +59,23 @@ Node 20 required (`.nvmrc` present). Use `nvm use` before running.
 - `src/lib/promptTemplates.ts` — DALL-E prompt construction
 
 **Styling:** Dark theme forced in `layout.tsx`. Tailwind v4 via `@tailwindcss/postcss`. CSS variables `--color-primary` and `--font-heading` used for theming.
+
+## File Cheat-Sheets
+
+Summaries of frequently-read files — consult these before opening the file; only open it for the exact lines you need to change.
+
+**`src/lib/printify.ts`** — Printify API client (server-side only; needs `PRINTIFY_API_KEY` + `PRINTIFY_SHOP_ID`). Exports:
+
+- `BLUEPRINT_IDS` / `PRINT_PROVIDER_IDS` — category→ID maps for `shirt`(12/99), `hoodie`(92/99), `tote`(553/217), `mug`(68/1), `cup`(425/1). Verified against live catalog 2026-06-25.
+- `fetchVariantIds(blueprintId, printProviderId, category)` — fetches Black S/M/L/XL variant IDs from catalog (apparel matches "Black"/"Jet Black" titles; drinkware/totes take first available). In-memory `variantCache`. Falls back to hardcoded `VARIANT_IDS` on API failure.
+- `uploadImageToPrintify(imageUrl, fileName)` — fetches image server-side (Recraft CDN blocks Printify's servers), converts to JPEG 80% via `sharp` to shrink before base64, POSTs to `/uploads/images.json`.
+- `createPrintifyProduct({title, description, productCategory, printifyImageId, tags})` — builds product with front print area, price 2500 (cents), all variants enabled.
+- `getPrintifyMockupUrl(productId, {retries=5, initialDelayMs=5000})` — polls product with linear backoff for the default mockup `src`; returns `null` if never ready.
+- `publishPrintifyProduct(productId)` — POSTs publish with all fields enabled.
+
+**`src/app/shop/[productId]/page.tsx`** — client component (`'use client'`) product detail page. Loads Firestore `assets/{productId}` doc. Resolves mockup via `data.mockupUrl ?? data.imageUrl`. Size selector (`SIZES = XS–2XL`) shown only for apparel (`APPAREL = shirt|hoodie|tote`); apparel requires a size before Add to Cart. Cart writes to `localStorage` key `aiMerchCart` as flat `FlatCartItem[]`, dedup-keyed on `productId`+`size`. "Customize" link shows only when `defaultAssetId` is set. Inline-styled dark theme.
+
+> **`MEMORY.md` is auto-injected into context every session** — never `Read` it explicitly.
 
 ## Environment Variables
 
