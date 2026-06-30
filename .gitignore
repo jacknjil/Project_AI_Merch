@@ -1,6 +1,23 @@
 .superpowers/
 .playwright-mcp/
 *.png
-tools/prompt_scraper/prompts.db
 __pycache__/
 *.pyc
+
+# Claude Code config and session data
+.claude/
+
+# Root-level dependencies
+node_modules/
+
+# Batch data files (root level)
+sheet_batch*.csv
+sheet_batch*.ods
+sheet_batch*.tsv
+
+# Tools — data and output files
+tools/*.csv
+tools/*.tsv
+tools/*.txt
+tools/*.db
+tools/**/*.db
