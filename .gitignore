@@ -4,6 +4,9 @@
 __pycache__/
 *.pyc
 
+# One-off diagnostic scripts (problem-specific, no future value)
+apps/frontend/AI_Merch_Scripts/inspect_image.mjs
+
 # Claude Code config and session data
 .claude/
 
