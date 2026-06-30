@@ -1,90 +1,97 @@
-import 'dotenv/config'; // This loads the .env file immediately
+import 'dotenv/config';
 import admin from 'firebase-admin';
 
-// 1. Grab the raw JSON string from your .env
-// --- CONFIGURATION (The script needs these!) ---
+// ─── CONFIGURATION ────────────────────────────────────────────────────────────
+
+// Firestore document IDs to delete. Leave empty to do nothing.
+const IDS_TO_DELETE = [
+  // 'abc123',
+  // 'def456',
+];
+
+const IS_DRY_RUN = true; // flip to false to execute real deletes
+
 const BUCKET_NAME = 'ai-merch-dev.firebasestorage.app';
-const LOOKBACK_DAYS = 5; // <--- The script was missing this!
-const IS_DRY_RUN = false;
 
-// 1. Grab the raw JSON string from your .env
-const jsonKey = process.env.FIREBASE_SERVICE_ACCOUNT_JSON; // <-- This creates the name
+// ─────────────────────────────────────────────────────────────────────────────
 
-// 2. Use that SAME name to check if it exists
+const jsonKey = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 if (!jsonKey) {
-  console.error(
-    '❌ ERROR: FIREBASE_SERVICE_ACCOUNT_JSON is missing from .env!',
-  );
+  console.error('ERROR: FIREBASE_SERVICE_ACCOUNT_JSON is missing from .env');
   process.exit(1);
 }
 
-// 3. Use that SAME name to parse it
-const serviceAccount = JSON.parse(jsonKey);
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  storageBucket: 'ai-merch-dev.firebasestorage.app',
+  credential: admin.credential.cert(JSON.parse(jsonKey)),
+  storageBucket: BUCKET_NAME,
 });
-// ... the rest of your runSurgicalReset() function below ...
+
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
 
-async function runSurgicalReset() {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
-
-  console.log('--------------------------------------------------');
-  console.log(
-    `🚀 MODE: ${IS_DRY_RUN ? 'DRY RUN (Viewing only)' : 'LIVE DELETE (Careful!)'}`,
-  );
-  console.log(`📅 Targeting assets created BEFORE: ${cutoff.toISOString()}`);
-  console.log('--------------------------------------------------');
-
-  // Query Firestore for old assets
-  const snapshot = await db
-    .collection('assets')
-    .where('createdAt', '<', cutoff)
-    .get();
-
-  if (snapshot.empty) {
-    console.log('✅ No old assets found matching that date. Nothing to do.');
-    return;
+async function run() {
+  if (IDS_TO_DELETE.length === 0) {
+    console.log('IDS_TO_DELETE is empty — nothing to do.');
+    process.exit(0);
   }
 
-  console.log(`Found ${snapshot.size} assets to process...`);
+  console.log('─'.repeat(56));
+  console.log(`MODE : ${IS_DRY_RUN ? 'DRY RUN (no changes)' : 'LIVE DELETE'}`);
+  console.log(`COUNT: ${IDS_TO_DELETE.length} IDs`);
+  console.log('─'.repeat(56));
 
-  for (const doc of snapshot.docs) {
-    const data = doc.data();
+  let deleted = 0;
+  let missing = 0;
+
+  for (const id of IDS_TO_DELETE) {
+    const ref = db.collection('assets').doc(id);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      console.log(`[MISSING]  ${id} — not in Firestore, skipping`);
+      missing++;
+      continue;
+    }
+
+    const data = snap.data();
     const storagePath = data.storagePath;
+    const label = data.title || data.niche || '(no title)';
 
     if (IS_DRY_RUN) {
-      console.log(
-        `[DRY RUN] Would delete: ${doc.id} (File: ${storagePath || 'None'})`,
-      );
-    } else {
-      // 1. Delete from Cloud Storage
+      console.log(`[DRY RUN]  ${id}  "${label}"`);
       if (storagePath) {
-        try {
-          await bucket.file(storagePath).delete();
-          console.log(`🗑️ Deleted Storage File: ${storagePath}`);
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (e) {
-          console.warn(`⚠️ File not found or skip: ${storagePath}`);
-        }
+        console.log(`           Storage : ${storagePath}`);
+      } else {
+        console.log('           Storage : (no storagePath — Storage file would be skipped)');
       }
-
-      // 2. Delete from Firestore
-      await doc.ref.delete();
-      console.log(`🗑️ Deleted Firestore Doc: ${doc.id}`);
+      continue;
     }
+
+    // Delete from Cloud Storage first
+    if (storagePath) {
+      try {
+        await bucket.file(storagePath).delete();
+        console.log(`[DELETED]  Storage  : ${storagePath}`);
+      } catch {
+        console.warn(`[WARN]     Storage file not found: ${storagePath}`);
+      }
+    } else {
+      console.warn(`[WARN]     ${id} has no storagePath — Storage file not deleted`);
+    }
+
+    // Delete from Firestore
+    await ref.delete();
+    console.log(`[DELETED]  Firestore: ${id}  "${label}"`);
+    deleted++;
   }
 
+  console.log('─'.repeat(56));
   if (IS_DRY_RUN) {
-    console.log(
-      '\n✨ Dry run complete. To delete for real, set IS_DRY_RUN = false in the script.',
-    );
+    console.log(`Dry run complete. ${IDS_TO_DELETE.length - missing} would be deleted, ${missing} not found.`);
+    console.log('Set IS_DRY_RUN = false to execute.');
   } else {
-    console.log('\n✨ Cleanup finished successfully.');
+    console.log(`Done. Deleted: ${deleted}  Not found: ${missing}`);
   }
 }
 
-runSurgicalReset().catch(console.error);
+run().catch(console.error);
