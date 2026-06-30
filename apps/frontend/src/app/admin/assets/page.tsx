@@ -21,6 +21,8 @@ export default function AdminAssetsPage() {
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [refreshingMockupId, setRefreshingMockupId] = useState<string | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
 
   const publishToPrintify = async (asset: Asset) => {
     if (!asset.imageUrl) return;
@@ -84,6 +86,34 @@ export default function AdminAssetsPage() {
     }
   };
 
+  const backfillAllMockups = async () => {
+    const pending = assets.filter((a) => a.printifyProductId && !a.mockupUrl);
+    if (pending.length === 0) return;
+    setBackfilling(true);
+    setBackfillProgress({ done: 0, total: pending.length });
+    for (let i = 0; i < pending.length; i++) {
+      const asset = pending[i];
+      try {
+        const res = await fetch('/api/refresh-mockup', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assetId: asset.id, printifyProductId: asset.printifyProductId }),
+        });
+        const data = await res.json() as { error?: string; mockupUrl?: string };
+        if (res.ok && data.mockupUrl) {
+          setAssets((prev) =>
+            prev.map((a) => (a.id === asset.id ? { ...a, mockupUrl: data.mockupUrl } : a)),
+          );
+        }
+      } catch {
+        // non-fatal — continue to next asset
+      }
+      setBackfillProgress({ done: i + 1, total: pending.length });
+    }
+    setBackfilling(false);
+    setBackfillProgress(null);
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -142,9 +172,23 @@ export default function AdminAssetsPage() {
               Toggle visibility in the customer gallery.
             </p>
           </div>
-          <Link href="/admin/products" className="text-sm text-accent underline">
-            ← Products
-          </Link>
+          <div className="flex items-center gap-3">
+            {backfillProgress && (
+              <span className="text-xs text-muted">
+                {backfillProgress.done}/{backfillProgress.total} mockups…
+              </span>
+            )}
+            <button
+              onClick={backfillAllMockups}
+              disabled={backfilling || assets.filter((a) => a.printifyProductId && !a.mockupUrl).length === 0}
+              className="rounded-md border border-sky-500/30 px-3 py-1 text-xs font-medium text-sky-400 transition-colors hover:border-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {backfilling ? 'Backfilling…' : 'Backfill All Mockups'}
+            </button>
+            <Link href="/admin/products" className="text-sm text-accent underline">
+              ← Products
+            </Link>
+          </div>
         </header>
 
         {error && (
