@@ -5,8 +5,17 @@ import admin from 'firebase-admin';
 
 // Firestore document IDs to delete. Leave empty to do nothing.
 const IDS_TO_DELETE = [
-  // 'abc123',
-  // 'def456',
+  '2O1rzK3atsVRuE8SFRJA',
+  'ESUJvNzCdnzUwx80bswq',
+  'LlzQuVLfHBwfuzhM0Mhu',
+  'SY7mfjaU5Z5pI8flSfYi',
+  'auLDvQcMK8xNvXPVWTr2',
+  'cbSrEwDQiDLeIRLLz0jS',
+  'jjAb2Y5jlDJ0PglfKEZy',
+  'rfng07ID72EXKLT8dN7N',
+  'sknUXVkbm3eojtJybOzm',
+  'ud0YsozrAeCziJU02Zdi',
+  'y52XTWPFKSZXYg58qcWJ',
 ];
 
 const IS_DRY_RUN = true; // flip to false to execute real deletes
