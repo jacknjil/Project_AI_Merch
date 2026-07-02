@@ -66,6 +66,20 @@ const NICHE_MAP = {
 
   // Tech (no-space variant found in dry run)
   'tech/productivity':    'tech',
+
+  // POD / lifestyle composites (found in 2026-07-02 audit)
+  'POD merch / poster':   'posters',
+  'travel / lifestyle':   'travel',
+  'travel / road trip':   'travel',
+  'books / cozy':         'books',
+
+  // Hyphen-joined composites from trends2026 batch (found in 2026-07-02 follow-up audit)
+  'cats-coffee':           'cats',
+  'hiking-dogs':           'hiking',
+  'vintage-retro':         'vintage',
+  'minimalist-typography': 'minimalist',
+  'funny-sarcastic':       'humor',
+  'Hobbies':               'hobbies',
 };
 
 // ── Init Firebase ──────────────────────────────────────────────────────────────
