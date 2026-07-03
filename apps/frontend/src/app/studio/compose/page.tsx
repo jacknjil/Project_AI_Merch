@@ -51,7 +51,12 @@ function ComposeContent() {
     setSaving(true);
     setError(null);
     try {
+      const transformers = stageRef.current.find('Transformer');
+      transformers.forEach((tr) => tr.hide());
+      stageRef.current.batchDraw();
       const dataUrl = stageRef.current.toDataURL({ pixelRatio: 2 });
+      transformers.forEach((tr) => tr.show());
+      stageRef.current.batchDraw();
       const res = await fetch('/api/save-mockup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
