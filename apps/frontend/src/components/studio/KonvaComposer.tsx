@@ -105,7 +105,7 @@ export default function KonvaComposer({
   return (
     <div
       ref={containerRef}
-      className="w-full overflow-hidden rounded-lg border border-white/10"
+      className="w-full max-w-100 mx-auto overflow-hidden rounded-lg border border-white/10"
       style={{ aspectRatio: '1 / 1' }}
     >
       <div
