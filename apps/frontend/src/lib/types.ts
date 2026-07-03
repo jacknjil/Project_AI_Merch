@@ -7,9 +7,6 @@ export interface Product {
   active?: boolean;
   featured?: boolean;
   mockupImageUrl?: string | null;
-  mockup_image_url?: string | null;
-  imageUrl?: string | null;
-  mockup_base_image?: string | null;
   defaultAssetId?: string | null;
   niche?: string;
   style?: string;

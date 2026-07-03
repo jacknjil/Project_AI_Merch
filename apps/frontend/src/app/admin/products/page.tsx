@@ -34,12 +34,7 @@ export default function AdminProductsPage() {
         const items: ProductDoc[] = snap.docs.map((doc) => {
           const data = doc.data() as any;
 
-          // Try multiple possible field names, fall back in order
-          const resolvedMockupUrl: string | null =
-            data.mockupImageUrl ??
-            data.mockup_image_url ??
-            data.imageUrl ??
-            null;
+          const resolvedMockupUrl: string | null = data.mockupImageUrl ?? null;
 
           return {
             id: doc.id,
@@ -286,23 +281,27 @@ export default function AdminProductsPage() {
                     </p>
                   </div>
 
-                  {/* View in shop */}
-                  <Link
-                    href={`/shop/${p.id}`}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 6,
-                      border: '1px solid #4b5563',
-                      background: '#111827',
-                      color: '#e5e7eb',
-                      fontSize: '0.8rem',
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    View in shop
-                  </Link>
+                  {/* Try in studio (products aren't published to /shop directly) */}
+                  {p.defaultAssetId ? (
+                    <Link
+                      href={`/studio/apply?assetId=${p.defaultAssetId}`}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #4b5563',
+                        background: '#111827',
+                        color: '#e5e7eb',
+                        fontSize: '0.8rem',
+                        textDecoration: 'none',
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Try in studio
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
 
                   {/* Edit */}
                   <Link

@@ -83,12 +83,7 @@ function ComposeContent() {
     );
   }
 
-  const mockupUrl =
-    product?.mockup_base_image ||
-    product?.mockupImageUrl ||
-    product?.mockup_image_url ||
-    product?.imageUrl ||
-    '';
+  const mockupUrl = product?.mockupImageUrl || '';
 
   return (
     <div className="flex flex-1 flex-col">

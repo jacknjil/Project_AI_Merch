@@ -84,12 +84,7 @@ function ApplyContent() {
         {/* Product list */}
         <div className="flex flex-col gap-2">
           {products.map((product) => {
-            const image =
-              product.mockupImageUrl ||
-              product.mockup_image_url ||
-              product.imageUrl ||
-              product.mockup_base_image ||
-              null;
+            const image = product.mockupImageUrl || null;
             const price = product.price ?? product.base_price ?? 0;
             const isSelected = selectedProduct?.id === product.id;
 
