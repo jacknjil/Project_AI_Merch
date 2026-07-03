@@ -8,9 +8,10 @@ AI-powered e-commerce platform for merchandise generation and sales. Customers c
 
 ## Cost Discipline
 
-Keep per-session token spend lean (target ~$8–12; flag at $15+):
+Billed via Claude Pro/Max subscription, not metered API — there is no per-session dollar target. Discipline is about **usage-window quota**, not spend: watch Claude Code's own usage-limit indicator, and avoid burning through the rolling window faster than the work requires.
 
-- **Model:** Default to **Sonnet**. Escalate to Opus (`/model opus`) only for genuinely hard work — multi-file refactors, architecture, gnarly debugging. Short, mechanical turns (CSV/sheet edits, status checks, single-line fixes, lookups) belong on Sonnet.
+- **Model:** Default to **Sonnet**. Escalate to Opus (`/model opus`) only for genuinely hard work — multi-file refactors, architecture, gnarly debugging. Short, mechanical turns (CSV/sheet edits, status checks, single-line fixes, lookups) belong on Sonnet. Heavier models and deeper thinking still consume more of the usage window per message even though there's no per-token bill.
+- **Subagent fan-out:** Each dispatched subagent draws from the same usage pool. Prefer direct execution over spinning up implementer/reviewer subagent pairs for small, well-specified tasks; reserve subagent-driven workflows for genuinely parallel or independent work.
 - **Reads:** Consult **File Cheat-Sheets** (below) before opening a summarized file; open the file only for the exact lines you'll change. Never re-`Read` `MEMORY.md` — it is auto-injected into context every session. Don't read full CSVs; grep or read ranges.
 - **When a file shows up as a repeat-read across sessions,** add a summary to File Cheat-Sheets instead of re-reading it.
 
