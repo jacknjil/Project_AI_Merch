@@ -172,6 +172,7 @@ export default function AssetDetailPage() {
           {products.map((p) => (
             <div
               key={p.id}
+              onClick={() => handleCustomize(p.id)}
               style={{
                 borderRadius: 12,
                 border: '1px solid #1f2937',
@@ -179,6 +180,7 @@ export default function AssetDetailPage() {
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
+                cursor: 'pointer',
               }}
             >
               <div
