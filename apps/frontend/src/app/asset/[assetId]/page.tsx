@@ -60,8 +60,8 @@ export default function AssetDetailPage() {
             id: d.id,
             name: p.name ?? 'Unnamed product',
             base_price: p.base_price,
-            mockupImageUrl: p.mockupImageUrl ?? p.mockup_base_image ?? null,
-            category: p.category,
+            mockupImageUrl: p.mockupImageUrl ?? null,
+            category: p.product_category,
           };
         });
 
@@ -79,7 +79,7 @@ export default function AssetDetailPage() {
   }, [assetId]);
 
   const handleCustomize = (productId: string) => {
-    router.push(`/studio?assetId=${assetId}&productId=${productId}`);
+    router.push(`/studio/compose?assetId=${assetId}&productId=${productId}`);
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -213,17 +213,19 @@ export default function AssetDetailPage() {
                     }}
                   />
                 )}
-                <span
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  No mockup
-                </span>
+                {!p.mockupImageUrl && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    No mockup
+                  </span>
+                )}
               </div>
               <div style={{ padding: 12, flexGrow: 1 }}>
                 <h3
