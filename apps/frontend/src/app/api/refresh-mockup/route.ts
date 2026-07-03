@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
-import { getPrintifyMockupUrl } from '@/lib/printify';
+import { getPrintifyMockupImages } from '@/lib/printify';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +16,8 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const mockupUrl = await getPrintifyMockupUrl(String(printifyProductId)).catch(() => null);
+    const mockupImages = await getPrintifyMockupImages(String(printifyProductId)).catch(() => []);
+    const mockupUrl = mockupImages.find((img) => img.isDefault)?.src ?? mockupImages[0]?.src ?? null;
 
     if (!mockupUrl) {
       return NextResponse.json(
@@ -27,10 +28,11 @@ export async function PATCH(req: NextRequest) {
 
     await adminDb.collection('assets').doc(String(assetId)).update({
       mockupUrl,
+      mockupImages,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    return NextResponse.json({ success: true, mockupUrl });
+    return NextResponse.json({ success: true, mockupUrl, mockupImages });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error';
     console.error('refresh-mockup error:', message);

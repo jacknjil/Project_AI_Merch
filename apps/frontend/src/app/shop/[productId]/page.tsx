@@ -4,11 +4,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
+import { addToCart } from '@/lib/cart';
 const APPAREL = new Set(['shirt', 'hoodie', 'tote']);
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL'];
+
+type MockupImage = { src: string; label: string; isDefault: boolean };
 
 type ProductDoc = {
   id: string;
@@ -17,8 +20,16 @@ type ProductDoc = {
   price?: number;
   active?: boolean;
   mockupImageUrl?: string | null;
+  mockupImages?: MockupImage[];
+  designGroupId?: string;
   defaultAssetId?: string | null;
   product_category?: string;
+};
+
+type SiblingProduct = {
+  id: string;
+  name: string;
+  product_category: string;
 };
 
 function resolveTitle(title: string | undefined, niche: string | undefined, category: string | undefined): string {
@@ -35,6 +46,7 @@ function categoryLabel(raw: string): string {
     mug: 'Mug',
     cup: 'Cup',
   };
+  if (!raw) return 'Product';
   return map[raw.toLowerCase()] ?? raw;
 }
 
@@ -48,6 +60,8 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [siblings, setSiblings] = useState<SiblingProduct[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -68,6 +82,8 @@ export default function ProductDetailPage() {
         const data = snap.data() as any;
         const resolvedMockupUrl: string | null =
           data.mockupUrl ?? data.imageUrl ?? null;
+        const mockupImages: MockupImage[] | undefined = data.mockupImages;
+        const designGroupId: string | undefined = data.designGroupId;
 
         setProduct({
           id: snap.id,
@@ -76,9 +92,37 @@ export default function ProductDetailPage() {
           price: typeof data.price === 'number' ? data.price : 25,
           active: data.active ?? true,
           mockupImageUrl: resolvedMockupUrl,
+          mockupImages,
+          designGroupId,
           defaultAssetId: null,
           product_category: data.productCategory ?? data.product_category ?? '',
         });
+        setSelectedImageIndex(
+          mockupImages ? Math.max(mockupImages.findIndex((img) => img.isDefault), 0) : 0,
+        );
+
+        if (designGroupId) {
+          const siblingsQuery = query(
+            collection(db, 'assets'),
+            where('designGroupId', '==', designGroupId),
+            where('printifyStatus', 'in', ['published', 'created']),
+          );
+          const siblingsSnap = await getDocs(siblingsQuery);
+          setSiblings(
+            siblingsSnap.docs
+              .filter((d) => d.id !== productId)
+              .map((d) => {
+                const sData = d.data() as any;
+                return {
+                  id: d.id,
+                  name: resolveTitle(sData.title, sData.niche, sData.productCategory ?? sData.product_category),
+                  product_category: sData.productCategory ?? sData.product_category ?? '',
+                };
+              }),
+          );
+        } else {
+          setSiblings([]);
+        }
       } catch (err: any) {
         setError(err?.message || 'Failed to load product.');
       } finally {
@@ -92,52 +136,14 @@ export default function ProductDetailPage() {
   function handleAddToCart() {
     if (!product) return;
 
-    const CART_KEY = 'aiMerchCart';
-    type FlatCartItem = {
-      productId: string;
-      productName: string;
-      price: number;
-      assetId?: string;
-      assetTitle?: string;
-      mockupImageUrl?: string | null;
-      quantity: number;
-      size?: string | null;
-    };
-
-    try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(CART_KEY) : null;
-      const existing: FlatCartItem[] = raw ? (JSON.parse(raw) as FlatCartItem[]) : [];
-
-      const matchIdx = existing.findIndex(
-        (i) => i.productId === product.id && (i.size ?? null) === (selectedSize ?? null),
-      );
-
-      let updated: FlatCartItem[];
-      if (matchIdx >= 0) {
-        updated = existing.map((i, idx) =>
-          idx === matchIdx ? { ...i, quantity: i.quantity + 1 } : i,
-        );
-      } else {
-        updated = [
-          ...existing,
-          {
-            productId: product.id,
-            productName: product.name,
-            price: product.price ?? 25,
-            mockupImageUrl: product.mockupImageUrl ?? null,
-            assetTitle: product.name,
-            quantity: 1,
-            size: selectedSize,
-          },
-        ];
-      }
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(CART_KEY, JSON.stringify(updated));
-      }
-    } catch {
-      // localStorage unavailable
-    }
+    addToCart({
+      productId: product.id,
+      productName: product.name,
+      price: product.price ?? 25,
+      mockupImageUrl: product.mockupImageUrl ?? null,
+      assetTitle: product.name,
+      size: selectedSize,
+    });
 
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
@@ -249,24 +255,57 @@ export default function ProductDetailPage() {
                 }}
               >
                 <div className="relative aspect-square w-full max-w-100 mx-auto overflow-hidden rounded-2xl bg-white/5 border border-white/10">
-                  {product.mockupImageUrl ? (
-                    <Image
-                      src={product.mockupImageUrl}
-                      alt={product.name}
-                      fill
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      className="object-cover transition-transform duration-500 hover:scale-105"
-                      priority
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <span className="text-xs font-mono uppercase tracking-widest text-white/20">
-                        No Mockup Available
-                      </span>
-                    </div>
-                  )}
+                  {(() => {
+                    const displayedSrc =
+                      product.mockupImages?.[selectedImageIndex]?.src ?? product.mockupImageUrl;
+                    return displayedSrc ? (
+                      <Image
+                        src={displayedSrc}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover transition-transform duration-500 hover:scale-105"
+                        priority
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <span className="text-xs font-mono uppercase tracking-widest text-white/20">
+                          No Mockup Available
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
+
+              {product.mockupImages && product.mockupImages.length > 1 && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  {product.mockupImages.map((img, i) => {
+                    const active = i === selectedImageIndex;
+                    return (
+                      <button
+                        key={img.src}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(i)}
+                        title={img.label}
+                        style={{
+                          position: 'relative',
+                          width: 56,
+                          height: 56,
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          border: `2px solid ${active ? '#10b981' : '#1f2937'}`,
+                          cursor: 'pointer',
+                          padding: 0,
+                          background: '#020617',
+                        }}
+                      >
+                        <Image src={img.src} alt={img.label} fill sizes="56px" className="object-cover" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -311,6 +350,46 @@ export default function ProductDetailPage() {
               >
                 {product.description}
               </p>
+            )}
+
+            {/* Product type switcher — only shown when sibling products are linked via designGroupId */}
+            {siblings.length > 0 && (
+              <div>
+                <p style={{ margin: 0, marginBottom: 8, fontSize: '0.8rem', color: '#9ca3af' }}>
+                  Also available as
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #10b981',
+                      background: '#022c22',
+                      color: '#a7f3d0',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    {categoryLabel(product.product_category ?? '')}
+                  </span>
+                  {siblings.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={`/shop/${s.id}`}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #374151',
+                        background: '#111827',
+                        color: '#9ca3af',
+                        fontSize: '0.85rem',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      {categoryLabel(s.product_category)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Size selector — apparel only */}

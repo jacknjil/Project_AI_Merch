@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Konva from 'konva';
 import { getAsset } from '@/hooks/useAssets';
 import { getProduct } from '@/hooks/useProducts';
-import { useCart } from '@/context/CartContext';
+import { addToCart } from '@/lib/cart';
 import { Asset, Product } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 
@@ -18,7 +18,6 @@ const KonvaComposer = dynamic(
 function ComposeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { addItem } = useCart();
 
   const assetId = searchParams.get('assetId');
   const productId = searchParams.get('productId');
@@ -60,7 +59,15 @@ function ComposeContent() {
       });
       if (!res.ok) throw new Error('Save failed');
       const { imageUrl } = await res.json();
-      addItem({ ...product, mockupImageUrl: imageUrl }, 1, assetId);
+      addToCart({
+        productId: product.id,
+        productName: product.name,
+        price: product.price ?? product.base_price ?? 0,
+        assetId: assetId ?? undefined,
+        assetTitle: asset?.title,
+        mockupImageUrl: imageUrl,
+        size: null,
+      });
       router.push('/cart');
     } catch {
       setError('Could not save your design. Please try again.');

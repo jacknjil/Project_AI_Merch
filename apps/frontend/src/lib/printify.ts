@@ -199,10 +199,16 @@ export async function createPrintifyProduct(
   return res.json() as Promise<PrintifyProduct>;
 }
 
-export async function getPrintifyMockupUrl(
+export interface PrintifyMockupImage {
+  src: string;
+  label: string;
+  isDefault: boolean;
+}
+
+export async function getPrintifyMockupImages(
   productId: string,
   { retries = 5, initialDelayMs = 5000 }: { retries?: number; initialDelayMs?: number } = {},
-): Promise<string | null> {
+): Promise<PrintifyMockupImage[]> {
   const { apiKey, shopId } = getCredentials();
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -215,17 +221,21 @@ export async function getPrintifyMockupUrl(
       { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } },
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) return [];
 
     const data = await res.json() as { images?: { src: string; is_default?: boolean }[] };
     const images = data.images ?? [];
-    const defaultImg = images.find((i) => i.is_default) ?? images[0];
-    const url = defaultImg?.src ?? null;
 
-    if (url) return url;
+    if (images.length > 0) {
+      let altCount = 0;
+      return images.map((img) => {
+        const isDefault = !!img.is_default;
+        return { src: img.src, label: isDefault ? 'Front' : `Alternate ${++altCount}`, isDefault };
+      });
+    }
   }
 
-  return null;
+  return [];
 }
 
 export async function publishPrintifyProduct(productId: string): Promise<void> {

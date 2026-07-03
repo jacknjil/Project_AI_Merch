@@ -23,6 +23,20 @@ export default function AdminAssetsPage() {
   const [refreshingMockupId, setRefreshingMockupId] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
+  const [groupIdDrafts, setGroupIdDrafts] = useState<Record<string, string>>({});
+
+  const saveDesignGroupId = async (asset: Asset, value: string) => {
+    const trimmed = value.trim();
+    setRowErrors((prev) => ({ ...prev, [asset.id]: '' }));
+    setAssets((prev) =>
+      prev.map((a) => (a.id === asset.id ? { ...a, designGroupId: trimmed || undefined } : a)),
+    );
+    try {
+      await updateDoc(doc(db, 'assets', asset.id), { designGroupId: trimmed || null });
+    } catch {
+      setRowErrors((prev) => ({ ...prev, [asset.id]: 'Failed to save group id.' }));
+    }
+  };
 
   const publishToPrintify = async (asset: Asset) => {
     if (!asset.imageUrl) return;
@@ -180,7 +194,7 @@ export default function AdminAssetsPage() {
             )}
             <button
               onClick={backfillAllMockups}
-              disabled={backfilling || assets.filter((a) => a.printifyProductId && !a.mockupUrl).length === 0}
+              disabled={backfilling || assets.filter((a) => a.printifyProductId && !a.mockupImages?.length).length === 0}
               className="rounded-md border border-sky-500/30 px-3 py-1 text-xs font-medium text-sky-400 transition-colors hover:border-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {backfilling ? 'Backfilling…' : 'Backfill All Mockups'}
@@ -271,7 +285,7 @@ export default function AdminAssetsPage() {
                   </button>
                 )}
 
-                {asset.printifyProductId && !asset.mockupUrl && (
+                {asset.printifyProductId && !asset.mockupImages?.length && (
                   <button
                     onClick={() => refreshMockup(asset)}
                     disabled={refreshingMockupId === asset.id}
@@ -280,6 +294,18 @@ export default function AdminAssetsPage() {
                     {refreshingMockupId === asset.id ? 'Refreshing…' : 'Refresh Mockup'}
                   </button>
                 )}
+
+                <input
+                  type="text"
+                  placeholder="Group ID"
+                  title="Set the same value on sibling assets (e.g. shirt + hoodie of the same design) to link them as a product-type switcher on the shop page"
+                  value={groupIdDrafts[asset.id] ?? asset.designGroupId ?? ''}
+                  onChange={(e) =>
+                    setGroupIdDrafts((prev) => ({ ...prev, [asset.id]: e.target.value }))
+                  }
+                  onBlur={(e) => saveDesignGroupId(asset, e.target.value)}
+                  className="w-24 shrink-0 rounded-md border border-white/10 bg-background px-2 py-1 text-xs text-primary placeholder:text-muted"
+                />
               </div>
             );
           })}

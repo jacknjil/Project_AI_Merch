@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/Button';
-import { useCart } from '@/context/CartContext';
+import { useCartCount, setCartSheetOpen } from '@/lib/cart';
 
 export function Header() {
   const router = useRouter();
-  const { cartCount, setIsOpen } = useCart();
+  const cartCount = useCartCount();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-secondary/90 backdrop-blur-md">
@@ -32,7 +32,7 @@ export function Header() {
           <Button variant="outline" size="sm" onClick={() => router.push('/login')}>
             Sign In
           </Button>
-          <Button variant="primary" size="sm" onClick={() => setIsOpen(true)}>
+          <Button variant="primary" size="sm" onClick={() => setCartSheetOpen(true)}>
             Cart ({cartCount})
           </Button>
         </div>

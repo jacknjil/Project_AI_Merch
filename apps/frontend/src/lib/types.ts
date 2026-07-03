@@ -32,4 +32,6 @@ export interface Asset {
   printifyProductId?: string;
   printifyStatus?: string;
   mockupUrl?: string;
+  mockupImages?: { src: string; label: string; isDefault: boolean }[];
+  designGroupId?: string;
 }

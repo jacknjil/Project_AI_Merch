@@ -2,19 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { readCart, writeCart, type FlatCartItem } from '@/lib/cart';
 
-const CART_KEY = 'aiMerchCart';
-
-type CartItem = {
-  productId: string;
-  productName: string;
-  price?: number;
-  assetId?: string;
-  assetTitle?: string;
-  mockupImageUrl?: string | null;
-  quantity: number;
-  size?: string;
-};
+type CartItem = FlatCartItem;
 
 function normalizeItems(raw: CartItem[]): CartItem[] {
   return raw.map((item) => ({
@@ -30,29 +20,23 @@ export default function CartPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(CART_KEY);
-      if (!raw) { setItems([]); return; }
-      const parsed = JSON.parse(raw);
-      setItems(Array.isArray(parsed) ? normalizeItems(parsed) : []);
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
+    setItems(normalizeItems(readCart()));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const onCartUpdated = () => setItems(normalizeItems(readCart()));
+    window.addEventListener('cart-updated', onCartUpdated);
+    return () => window.removeEventListener('cart-updated', onCartUpdated);
   }, []);
 
   function saveCart(next: CartItem[]) {
     setItems(next);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(CART_KEY, JSON.stringify(next));
-    }
+    writeCart(next);
   }
 
   function handleClearCart() {
-    if (typeof window !== 'undefined') window.localStorage.removeItem(CART_KEY);
-    setItems([]);
+    saveCart([]);
   }
 
   function handleRemoveItem(index: number) {

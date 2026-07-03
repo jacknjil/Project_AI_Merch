@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useCart } from '@/context/CartContext';
+import { useEffect, useState } from 'react';
+import { readCart, removeFromCart, useCartSheetOpen, type FlatCartItem } from '@/lib/cart';
 import { Button } from '@/components/ui/Button';
 import { loadStripe } from '@stripe/stripe-js';
 //import { Fragment } from 'react';
@@ -12,7 +13,24 @@ const stripePromise = loadStripe(
 );
 
 export function CartSheet() {
-  const { items, removeItem, cartTotal, isOpen, setIsOpen } = useCart();
+  const [items, setItems] = useState<FlatCartItem[]>([]);
+  const [isOpen, setIsOpen] = useCartSheetOpen();
+
+  useEffect(() => {
+    const load = () => setItems(readCart());
+    load();
+    window.addEventListener('cart-updated', load);
+    return () => window.removeEventListener('cart-updated', load);
+  }, []);
+
+  const cartTotal = items.reduce(
+    (sum, item) => sum + (item.price || 0) * item.quantity,
+    0,
+  );
+
+  function removeItem(productId: string, assetId?: string | null) {
+    removeFromCart(productId, { assetId });
+  }
 
   const handleCheckout = async () => {
     const stripe = await stripePromise;
@@ -68,16 +86,12 @@ export function CartSheet() {
             </div>
           ) : (
             items.map((item, idx) => {
-              const image =
-                item.product.mockupImageUrl ||
-                item.product.mockup_image_url ||
-                item.product.imageUrl ||
-                item.product.mockup_base_image;
-              const price = item.product.price ?? item.product.base_price ?? 0;
+              const image = item.mockupImageUrl;
+              const price = item.price || 0;
 
               return (
                 <div
-                  key={`${item.product.id}-${idx}`}
+                  key={`${item.productId}-${idx}`}
                   className="flex gap-4 border-b pb-4 last:border-0"
                 >
                   <div className="w-20 h-20 bg-gray-100 rounded-md overflow-hidden shrink-0">
@@ -85,13 +99,13 @@ export function CartSheet() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={image}
-                        alt={item.product.name}
+                        alt={item.productName}
                         className="w-full h-full object-cover"
                       />
                     )}
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-medium">{item.product.name}</h3>
+                    <h3 className="font-medium">{item.productName}</h3>
                     <p className="text-sm text-gray-500">
                       Qty: {item.quantity}
                       {item.size && <span className="ml-2 text-xs text-gray-400">· {item.size}</span>}
@@ -106,9 +120,7 @@ export function CartSheet() {
                         ${(price * item.quantity).toFixed(2)}
                       </span>
                       <button
-                        onClick={() =>
-                          removeItem(item.product.id, item.assetId)
-                        }
+                        onClick={() => removeItem(item.productId, item.assetId)}
                         className="text-xs text-red-500 hover:underline"
                       >
                         Remove
