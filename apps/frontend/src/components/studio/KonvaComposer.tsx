@@ -71,6 +71,7 @@ function DraggableAsset({ url }: { url: string }) {
     <>
       <KonvaImage
         ref={imageRef}
+        name="design-asset"
         image={image}
         x={pos}
         y={pos}
