@@ -5,6 +5,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
 
+type DesignPlacement = {
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+};
+
 type CheckoutItemPayload = {
   id: string;
   assetId: string;
@@ -15,6 +22,9 @@ type CheckoutItemPayload = {
   mockupImageUrl?: string | null;
   quantity: number;
   size?: string;
+  designImageUrl?: string | null;
+  productCategory?: string | null;
+  placement?: DesignPlacement | null;
 
   // optional legacy fields we might still see:
   product?: any;
@@ -90,6 +100,9 @@ export async function POST(req: NextRequest) {
         unitAmountCents: unit_amount,
         mockupImageUrl: imageUrl,
         size: item.size ?? null,
+        designImageUrl: item.designImageUrl ?? null,
+        productCategory: item.productCategory ?? null,
+        placement: item.placement ?? null,
       };
     });
 
