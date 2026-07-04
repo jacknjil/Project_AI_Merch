@@ -63,8 +63,13 @@ export default function CartPage() {
           productId: item.productId,
           assetTitle: item.assetTitle ?? 'Untitled design',
           productName: item.productName ?? 'Product',
+          price: item.price,
+          mockupImageUrl: item.mockupImageUrl ?? null,
           quantity: item.quantity,
           size: item.size,
+          designImageUrl: item.designImageUrl ?? null,
+          productCategory: item.productCategory ?? null,
+          placement: item.placement ?? null,
         })),
       };
 
