@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Konva from 'konva';
 import { getAsset } from '@/hooks/useAssets';
 import { getProduct } from '@/hooks/useProducts';
-import { addToCart } from '@/lib/cart';
+import { addToCart, type DesignPlacement } from '@/lib/cart';
 import { Asset, Product } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 
@@ -51,12 +51,23 @@ function ComposeContent() {
     setSaving(true);
     setError(null);
     try {
-      const transformers = stageRef.current.find('Transformer');
+      const stage = stageRef.current;
+      const designNode = stage.findOne<Konva.Image>('.design-asset');
+      const placement: DesignPlacement | null = designNode
+        ? {
+            x: designNode.x() / stage.width(),
+            y: designNode.y() / stage.height(),
+            scaleX: designNode.scaleX(),
+            scaleY: designNode.scaleY(),
+          }
+        : null;
+
+      const transformers = stage.find('Transformer');
       transformers.forEach((tr) => tr.hide());
-      stageRef.current.batchDraw();
-      const dataUrl = stageRef.current.toDataURL({ pixelRatio: 2 });
+      stage.batchDraw();
+      const dataUrl = stage.toDataURL({ pixelRatio: 2 });
       transformers.forEach((tr) => tr.show());
-      stageRef.current.batchDraw();
+      stage.batchDraw();
       const res = await fetch('/api/save-mockup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,6 +82,9 @@ function ComposeContent() {
         assetId: assetId ?? undefined,
         assetTitle: asset?.title,
         mockupImageUrl: imageUrl,
+        designImageUrl: asset.imageUrl,
+        productCategory: product.product_category ?? null,
+        placement,
         size: null,
       });
       router.push('/cart');
