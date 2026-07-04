@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react';
 
 export const CART_KEY = 'aiMerchCart';
 
+export type DesignPlacement = {
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+};
+
 export type FlatCartItem = {
   id?: string;
   productId: string;
@@ -12,6 +19,10 @@ export type FlatCartItem = {
   mockupImageUrl?: string | null;
   quantity: number;
   size?: string | null;
+  /** Original high-res design image (not the flattened Konva preview) — for manual fulfillment. */
+  designImageUrl?: string | null;
+  productCategory?: string | null;
+  placement?: DesignPlacement | null;
 };
 
 function isBrowser(): boolean {
