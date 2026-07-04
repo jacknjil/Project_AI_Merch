@@ -65,6 +65,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Look up each unique product's real price server-side — never trust
+    // the client-supplied item.price for the amount actually charged.
+    const uniqueProductIds = [...new Set(items.map((item) => item.productId).filter(Boolean))];
+    const productPriceById = new Map<string, number>();
+
+    const productSnaps = await Promise.all(
+      uniqueProductIds.map((id) => adminDb.collection('products').doc(id).get()),
+    );
+
+    const missingProductIds: string[] = [];
+    productSnaps.forEach((snap, i) => {
+      const id = uniqueProductIds[i];
+      if (!snap.exists) {
+        missingProductIds.push(id);
+        return;
+      }
+      const data = snap.data();
+      const price = typeof data?.price === 'number' ? data.price : 25; // matches /shop's fallback
+      productPriceById.set(id, price);
+    });
+
+    if (missingProductIds.length > 0) {
+      return NextResponse.json(
+        { error: `Unknown product(s) in cart: ${missingProductIds.join(', ')}` },
+        { status: 400 },
+      );
+    }
+
     let subtotalCents = 0;
 
     const normalizedItems = items.map((item) => {
@@ -80,13 +108,10 @@ export async function POST(req: NextRequest) {
         item.product?.mockup_base_image ??
         null;
 
-      // prefer flat price from cart; fall back to old product.price/base_price
-      const unitPrice =
-        typeof item.price === 'number' && !Number.isNaN(item.price)
-          ? item.price
-          : (item.product?.price ?? item.product?.base_price ?? 0);
+      // Server-verified price only — item.price is no longer trusted for the charge amount.
+      const unitPrice = productPriceById.get(item.productId ?? '') ?? 25;
 
-      const unit_amount = Math.max(50, Math.round((unitPrice || 0) * 100)); // at least $0.50
+      const unit_amount = Math.max(50, Math.round(unitPrice * 100)); // at least $0.50
       const quantity = item.quantity || 1;
       subtotalCents += unit_amount * quantity;
 
