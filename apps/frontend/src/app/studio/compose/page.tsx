@@ -65,7 +65,11 @@ function ComposeContent() {
       const transformers = stage.find('Transformer');
       transformers.forEach((tr) => tr.hide());
       stage.batchDraw();
-      const dataUrl = stage.toDataURL({ pixelRatio: 2 });
+      const dataUrl = stage.toDataURL({
+        pixelRatio: 2,
+        mimeType: 'image/jpeg',
+        quality: 0.8,
+      });
       transformers.forEach((tr) => tr.show());
       stage.batchDraw();
       const res = await fetch('/api/save-mockup', {

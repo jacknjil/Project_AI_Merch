@@ -5,12 +5,16 @@ import { adminDb, adminBucket, FieldValue } from '@/lib/firebaseAdmin';
 
 export const runtime = 'nodejs';
 
-async function uploadPngAndGetUrl(storagePath: string, png: Buffer) {
+async function uploadImageAndGetUrl(
+  storagePath: string,
+  image: Buffer,
+  contentType: string,
+) {
   const file = adminBucket.file(storagePath);
   const token = randomUUID();
 
-  await file.save(png, {
-    contentType: 'image/png',
+  await file.save(image, {
+    contentType,
     resumable: false,
     metadata: {
       metadata: {
@@ -36,8 +40,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Expecting: data:image/png;base64,AAAA...
-    const matches = String(dataUrl).match(/^data:image\/png;base64,(.+)$/);
+    // Expecting: data:image/jpeg;base64,AAAA... (or legacy image/png)
+    const matches = String(dataUrl).match(/^data:image\/(png|jpeg);base64,(.+)$/);
     if (!matches) {
       return NextResponse.json(
         { error: 'Invalid data URL format' },
@@ -45,11 +49,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const buffer = Buffer.from(matches[1], 'base64');
+    const [, imageFormat, base64Data] = matches;
+    const buffer = Buffer.from(base64Data, 'base64');
+    const extension = imageFormat === 'jpeg' ? 'jpg' : 'png';
 
     // 1) Upload to Storage
-    const storagePath = `mockups/${Date.now()}-${randomUUID()}.png`;
-    const imageUrl = await uploadPngAndGetUrl(storagePath, buffer);
+    const storagePath = `mockups/${Date.now()}-${randomUUID()}.${extension}`;
+    const imageUrl = await uploadImageAndGetUrl(
+      storagePath,
+      buffer,
+      `image/${imageFormat}`,
+    );
 
     // 2) Write Firestore doc
     const docRef = await adminDb.collection('mockups').add({
