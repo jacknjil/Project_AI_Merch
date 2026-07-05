@@ -26,6 +26,7 @@ export default function ProductTileImage({ mockupImages, fallbackSrc, alt }: Pro
 
   function handleMouseEnter() {
     if (!images) return;
+    if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % images.length);
