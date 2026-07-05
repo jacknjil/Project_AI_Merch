@@ -83,11 +83,11 @@ export default function AdminAssetsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assetId: asset.id, printifyProductId: asset.printifyProductId }),
       });
-      const data = await res.json() as { error?: string; mockupUrl?: string };
+      const data = await res.json() as { error?: string; mockupUrl?: string; mockupImages?: Asset['mockupImages'] };
       if (!res.ok) throw new Error(data.error ?? 'Refresh failed');
       setAssets((prev) =>
         prev.map((a) =>
-          a.id === asset.id ? { ...a, mockupUrl: data.mockupUrl } : a,
+          a.id === asset.id ? { ...a, mockupUrl: data.mockupUrl, mockupImages: data.mockupImages } : a,
         ),
       );
     } catch (err) {
@@ -101,7 +101,7 @@ export default function AdminAssetsPage() {
   };
 
   const backfillAllMockups = async () => {
-    const pending = assets.filter((a) => a.printifyProductId && !a.mockupUrl);
+    const pending = assets.filter((a) => a.printifyProductId && !a.mockupImages?.length);
     if (pending.length === 0) return;
     setBackfilling(true);
     setBackfillProgress({ done: 0, total: pending.length });
@@ -113,10 +113,10 @@ export default function AdminAssetsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ assetId: asset.id, printifyProductId: asset.printifyProductId }),
         });
-        const data = await res.json() as { error?: string; mockupUrl?: string };
+        const data = await res.json() as { error?: string; mockupUrl?: string; mockupImages?: Asset['mockupImages'] };
         if (res.ok && data.mockupUrl) {
           setAssets((prev) =>
-            prev.map((a) => (a.id === asset.id ? { ...a, mockupUrl: data.mockupUrl } : a)),
+            prev.map((a) => (a.id === asset.id ? { ...a, mockupUrl: data.mockupUrl, mockupImages: data.mockupImages } : a)),
           );
         }
       } catch {
@@ -199,6 +199,9 @@ export default function AdminAssetsPage() {
             >
               {backfilling ? 'Backfilling…' : 'Backfill All Mockups'}
             </button>
+            <Link href="/admin/printify-import" className="text-sm text-accent underline">
+              Import from Printify →
+            </Link>
             <Link href="/admin/products" className="text-sm text-accent underline">
               ← Products
             </Link>
