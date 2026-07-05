@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       printifyPrintProviderId: printProviderId != null ? Number(printProviderId) : null,
       mockupImages: images,
       mockupUrl,
+      imageUrl: mockupUrl ?? '',
       importSource: 'printify-import',
       createdAt: FieldValue.serverTimestamp(),
     });
