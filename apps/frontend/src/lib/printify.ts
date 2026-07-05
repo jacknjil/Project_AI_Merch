@@ -35,6 +35,25 @@ export const PRINT_PROVIDER_IDS: Record<string, number> = {
   cup:    1,   // SPOKE Custom Products
 };
 
+// Blueprint id -> category, for products not created through this app's
+// own publish pipeline. Extends the 5 app-default blueprints above with
+// blueprints discovered on Printify's own dashboard (audit: 2026-07-05).
+export const BLUEPRINT_CATEGORY_MAP: Record<number, string> = {
+  12: 'shirt',    // app default
+  92: 'hoodie',   // app default
+  553: 'tote',    // app default
+  68: 'mug',      // app default
+  425: 'cup',     // app default
+  400: 'sticker', // Kiss-Cut Stickers
+  1313: 'tote',   // Cotton Canvas Tote Bag
+  77: 'hoodie',   // Unisex Heavy Blend Hooded Sweatshirt
+  706: 'shirt',   // Unisex Garment-Dyed T-shirt
+};
+
+export function suggestCategoryForBlueprint(blueprintId: number): string | undefined {
+  return BLUEPRINT_CATEGORY_MAP[blueprintId];
+}
+
 // Fallback variant IDs — fetched from live catalog 2026-06-25
 // Used when the catalog API is unavailable at publish time
 const VARIANT_IDS: Record<string, number[]> = {
