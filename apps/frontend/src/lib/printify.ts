@@ -54,6 +54,54 @@ export function suggestCategoryForBlueprint(blueprintId: number): string | undef
   return BLUEPRINT_CATEGORY_MAP[blueprintId];
 }
 
+export interface PrintifyProductSummary {
+  id: string;
+  title: string;
+  blueprint_id: number;
+  print_provider_id: number;
+  images: { src: string; is_default?: boolean }[];
+}
+
+interface PrintifyProductsPage {
+  data: PrintifyProductSummary[];
+  current_page: number;
+  last_page: number;
+}
+
+const MAX_PRODUCT_PAGES = 50;
+
+export async function fetchAllPrintifyProducts(
+  fetchPage: (page: number) => Promise<PrintifyProductsPage>,
+): Promise<PrintifyProductSummary[]> {
+  const all: PrintifyProductSummary[] = [];
+  let page = 1;
+  while (page <= MAX_PRODUCT_PAGES) {
+    const result = await fetchPage(page);
+    all.push(...result.data);
+    if (page >= result.last_page) break;
+    page += 1;
+  }
+  return all;
+}
+
+export function filterUnmatchedProducts(
+  products: PrintifyProductSummary[],
+  trackedIds: Set<string>,
+  ignoredIds: Set<string>,
+): PrintifyProductSummary[] {
+  return products.filter((p) => !trackedIds.has(p.id) && !ignoredIds.has(p.id));
+}
+
+export function mapPrintifyImages(
+  images: { src: string; is_default?: boolean }[],
+): PrintifyMockupImage[] {
+  let altCount = 0;
+  return images.map((img) => {
+    const isDefault = !!img.is_default;
+    return { src: img.src, label: isDefault ? 'Front' : `Alternate ${++altCount}`, isDefault };
+  });
+}
+
 // Fallback variant IDs — fetched from live catalog 2026-06-25
 // Used when the catalog API is unavailable at publish time
 const VARIANT_IDS: Record<string, number[]> = {
@@ -246,11 +294,7 @@ export async function getPrintifyMockupImages(
     const images = data.images ?? [];
 
     if (images.length > 0) {
-      let altCount = 0;
-      return images.map((img) => {
-        const isDefault = !!img.is_default;
-        return { src: img.src, label: isDefault ? 'Front' : `Alternate ${++altCount}`, isDefault };
-      });
+      return mapPrintifyImages(images);
     }
   }
 
