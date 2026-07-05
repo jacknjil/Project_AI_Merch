@@ -3,10 +3,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import FilterBar from '@/components/FilterBar';
+import ProductTileImage, { MockupImage } from '@/components/shop/ProductTileImage';
 
 type ProductDoc = {
   id: string;
@@ -14,6 +14,7 @@ type ProductDoc = {
   description?: string;
   price?: number;
   mockupImageUrl?: string | null;
+  mockupImages?: MockupImage[];
   niche?: string;
   style?: string;
   product_category?: string;
@@ -65,6 +66,7 @@ export default function ShopPage() {
           const data = doc.data() as any;
           const mockupImageUrl: string | null =
             data.mockupUrl ?? data.imageUrl ?? null;
+          const mockupImages: MockupImage[] | undefined = data.mockupImages;
 
           return {
             id: doc.id,
@@ -72,6 +74,7 @@ export default function ShopPage() {
             description: data.description ?? '',
             price: typeof data.price === 'number' ? data.price : 25,
             mockupImageUrl,
+            mockupImages,
             niche: data.niche ?? '',
             style: data.style ?? '',
             product_category: data.productCategory ?? data.product_category ?? '',
@@ -233,31 +236,11 @@ export default function ShopPage() {
                       gap: 8,
                     }}
                   >
-                    <div
-                      style={{
-                        borderRadius: 10,
-                        border: '1px solid #111827',
-                        overflow: 'hidden',
-                        background: '#020617',
-                        aspectRatio: '1 / 1',
-                        position: 'relative',
-                      }}
-                    >
-                      {p.mockupImageUrl ? (
-                        <Image
-                          src={p.mockupImageUrl}
-                          alt={p.name}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                          style={{ objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', fontSize: '0.8rem', color: '#6b7280', textAlign: 'center', padding: 8 }}>
-                          No image yet
-                        </span>
-                      )}
-                    </div>
+                    <ProductTileImage
+                      mockupImages={p.mockupImages}
+                      fallbackSrc={p.mockupImageUrl ?? null}
+                      alt={p.name}
+                    />
 
                     <div
                       style={{
