@@ -51,7 +51,9 @@ export default function GalleryPage() {
         const snap = await getDocs(q);
         if (cancelled) return;
 
-        const items = snap.docs.map((d) => {
+        const items = snap.docs
+          .filter((d) => (d.data() as { importSource?: string }).importSource !== 'printify-import')
+          .map((d) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const data: any = d.data() || {};
           const createdAt = coerceDate(data.createdAt ?? data.created_at);
