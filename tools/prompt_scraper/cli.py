@@ -56,9 +56,10 @@ def scrape_openart(ctx, limit):
     click.echo(f"openart: {added} new prompts added")
 
 @scrape.command("trends")
+@click.option("--category", default=None, help="Scope trends to a product category, e.g. 'sticker'")
 @click.pass_context
-def scrape_trends(ctx):
-    added = trends.scrape(ctx.obj["conn"])
+def scrape_trends(ctx, category):
+    added = trends.scrape(ctx.obj["conn"], category=category)
     click.echo(f"trends: {added} niche signals added")
 
 @scrape.command("all")
