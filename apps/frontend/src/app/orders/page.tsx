@@ -59,22 +59,22 @@ export default function OrdersPage() {
         const ordersRef = collection(db, "orders");
         const ordersQuery = query(
           ordersRef,
-          where("userId", "==", user.uid),
-          orderBy("created_at", "desc")
+          where("user.userId", "==", user.uid),
+          orderBy("createdAt", "desc")
         );
         const ordersSnap = await getDocs(ordersQuery);
 
         const rawOrders: OrderDoc[] = ordersSnap.docs.map((d) => {
           const data = d.data() as any;
           const created =
-            data.created_at?.toDate?.() ?? data.created_at ?? null;
+            data.createdAt?.toDate?.() ?? data.createdAt ?? null;
 
           return {
             id: d.id,
-            userId: data.userId ?? null,
+            userId: data.user?.userId ?? null,
             created_at: created,
-            payment_status: data.payment_status ?? "unknown",
-            total_amount: data.total_amount ?? 0,
+            payment_status: data.status ?? "unknown",
+            total_amount: data.amounts?.totalCents ?? 0,
             items: (data.items ?? []) as CartItem[],
           };
         });
