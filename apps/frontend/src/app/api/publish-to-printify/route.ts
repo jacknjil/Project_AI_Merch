@@ -26,11 +26,18 @@ export async function POST(req: NextRequest) {
     const isApparel = needsBackgroundRemoval(String(productCategory));
 
     if (isApparel) {
-      // Remove background first on the original (~1024px) — upscaled images exceed Recraft's size limit
+      // Remove background first on the original (~1024px) — upscaled images exceed Recraft's size limit.
+      // A failure here means the Printify product would be created with the background still attached,
+      // so this blocks the publish instead of silently continuing.
       try {
         printUrl = await removeBackground(printUrl);
       } catch (bgErr) {
-        console.warn('removeBackground failed, using image with background:', bgErr instanceof Error ? bgErr.message : bgErr);
+        const message = bgErr instanceof Error ? bgErr.message : String(bgErr);
+        console.error('publish-to-printify: removeBackground failed, blocking publish:', message);
+        return NextResponse.json(
+          { error: `Background removal failed: ${message}` },
+          { status: 502 },
+        );
       }
       // Then upscale the bg-removed image for print quality
       try {
