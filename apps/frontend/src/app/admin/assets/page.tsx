@@ -21,6 +21,7 @@ export default function AdminAssetsPage() {
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [refreshingMockupId, setRefreshingMockupId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
   const [groupIdDrafts, setGroupIdDrafts] = useState<Record<string, string>>({});
@@ -97,6 +98,32 @@ export default function AdminAssetsPage() {
       }));
     } finally {
       setRefreshingMockupId(null);
+    }
+  };
+
+  const restore = async (asset: Asset) => {
+    setRestoringId(asset.id);
+    setRowErrors((prev) => ({ ...prev, [asset.id]: '' }));
+    try {
+      const res = await fetch('/api/printify-reconcile/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: asset.id }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Restore failed');
+      setAssets((prev) =>
+        prev.map((a) =>
+          a.id === asset.id ? { ...a, printifyStatus: 'published', archivedAt: undefined } : a,
+        ),
+      );
+    } catch (err) {
+      setRowErrors((prev) => ({
+        ...prev,
+        [asset.id]: err instanceof Error ? err.message : 'Restore failed',
+      }));
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -202,6 +229,9 @@ export default function AdminAssetsPage() {
             <Link href="/admin/printify-import" className="text-sm text-accent underline">
               Import from Printify →
             </Link>
+            <Link href="/admin/printify-reconcile" className="text-sm text-accent underline">
+              Reconcile Deletions →
+            </Link>
             <Link href="/admin/products" className="text-sm text-accent underline">
               ← Products
             </Link>
@@ -278,6 +308,19 @@ export default function AdminAssetsPage() {
                   <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-400">
                     On Etsy
                   </span>
+                ) : asset.printifyStatus === 'archived' ? (
+                  <>
+                    <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-xs font-medium text-muted">
+                      Archived
+                    </span>
+                    <button
+                      onClick={() => restore(asset)}
+                      disabled={restoringId === asset.id}
+                      className="shrink-0 rounded-md border border-white/20 px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {restoringId === asset.id ? 'Restoring…' : 'Restore'}
+                    </button>
+                  </>
                 ) : (
                   <button
                     onClick={() => publishToPrintify(asset)}
