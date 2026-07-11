@@ -34,4 +34,5 @@ export interface Asset {
   printifyBlueprintId?: number;
   printifyPrintProviderId?: number;
   importSource?: 'printify-import';
+  archivedAt?: number;
 }
