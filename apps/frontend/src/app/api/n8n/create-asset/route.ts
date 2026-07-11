@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { adminDb, adminBucket, FieldValue } from '@/lib/firebaseAdmin';
-import { recraftGenerate, removeBackground, needsBackgroundRemoval } from '@/lib/recraft';
+import { recraftGenerate, removeBackground, needsBackgroundRemoval, DEFAULT_PRODUCT_CATEGORY } from '@/lib/recraft';
 
 export const runtime = 'nodejs';
 
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
 
     const data = result.data ?? [];
     const assets: Array<{ assetId: string; imageUrl: string }> = [];
-    const removeBg = needsBackgroundRemoval(productCategory);
+    const removeBg = needsBackgroundRemoval(productCategory || DEFAULT_PRODUCT_CATEGORY);
 
     for (let i = 0; i < data.length; i++) {
       const item: any = data[i];

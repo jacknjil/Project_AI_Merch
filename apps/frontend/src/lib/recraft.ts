@@ -47,6 +47,8 @@ export function needsBackgroundRemoval(productCategory: string | undefined): boo
   return APPAREL.has(productCategory ?? '');
 }
 
+export const DEFAULT_PRODUCT_CATEGORY = 'shirt';
+
 export function resolveRecraftStyle(styleTag: string | undefined, productCategory: string | undefined): StyleSpec {
   const map = APPAREL.has(productCategory ?? '') ? APPAREL_STYLE : DRINKWARE_STYLE;
   return map[styleTag ?? ''] ?? DEFAULT_STYLE;

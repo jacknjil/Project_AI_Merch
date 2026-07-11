@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Asset } from '@/lib/types';
+import { DEFAULT_PRODUCT_CATEGORY } from '@/lib/recraft';
 
 export default function AdminAssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -51,7 +52,7 @@ export default function AdminAssetsPage() {
           assetId: asset.id,
           imageUrl: asset.imageUrl,
           title: asset.title,
-          productCategory: asset.productCategory ?? 'shirt',
+          productCategory: asset.productCategory ?? DEFAULT_PRODUCT_CATEGORY,
           niche: asset.niche,
         }),
       });
