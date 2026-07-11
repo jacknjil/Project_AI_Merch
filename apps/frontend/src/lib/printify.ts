@@ -92,6 +92,26 @@ export function filterUnmatchedProducts(
   return products.filter((p) => !trackedIds.has(p.id) && !ignoredIds.has(p.id));
 }
 
+export interface AssetProductRef {
+  id: string;
+  title: string;
+  printifyProductId?: string;
+  printifyStatus?: string;
+  mockupUrl?: string | null;
+}
+
+export function findOrphanedAssets(
+  assets: AssetProductRef[],
+  livePrintifyProductIds: Set<string>,
+): AssetProductRef[] {
+  return assets.filter(
+    (a) =>
+      !!a.printifyProductId &&
+      a.printifyStatus !== 'archived' &&
+      !livePrintifyProductIds.has(a.printifyProductId),
+  );
+}
+
 export function mapPrintifyImages(
   images: { src: string; is_default?: boolean }[],
 ): PrintifyMockupImage[] {

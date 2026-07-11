@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { suggestCategoryForBlueprint, fetchAllPrintifyProducts, filterUnmatchedProducts, mapPrintifyImages } from './printify';
+import { suggestCategoryForBlueprint, fetchAllPrintifyProducts, filterUnmatchedProducts, mapPrintifyImages, findOrphanedAssets, type AssetProductRef } from './printify';
 
 describe('suggestCategoryForBlueprint', () => {
   it('returns shirt for blueprint 12 (app default shirt)', () => {
@@ -83,5 +83,38 @@ describe('mapPrintifyImages', () => {
 
   it('returns an empty array for no images', () => {
     expect(mapPrintifyImages([])).toEqual([]);
+  });
+});
+
+describe('findOrphanedAssets', () => {
+  const assets: AssetProductRef[] = [
+    { id: '1', title: 'Still live', printifyProductId: 'p1', printifyStatus: 'published' },
+    { id: '2', title: 'Deleted on Printify', printifyProductId: 'p2', printifyStatus: 'published' },
+    { id: '3', title: 'Never published', printifyProductId: undefined, printifyStatus: undefined },
+    { id: '4', title: 'Already archived', printifyProductId: 'p4', printifyStatus: 'archived' },
+  ];
+  const liveIds = new Set(['p1']);
+
+  it('flags assets whose printifyProductId is missing from the live Printify list', () => {
+    const result = findOrphanedAssets(assets, liveIds);
+    expect(result.map((a) => a.id)).toEqual(['2']);
+  });
+
+  it('excludes assets with no printifyProductId', () => {
+    const result = findOrphanedAssets(assets, liveIds);
+    expect(result.find((a) => a.id === '3')).toBeUndefined();
+  });
+
+  it('excludes assets already marked archived, even if missing from the live list', () => {
+    const result = findOrphanedAssets(assets, liveIds);
+    expect(result.find((a) => a.id === '4')).toBeUndefined();
+  });
+
+  it('returns an empty array when every tracked asset is still live', () => {
+    const result = findOrphanedAssets(
+      [{ id: '1', title: 'Live', printifyProductId: 'p1', printifyStatus: 'published' }],
+      new Set(['p1']),
+    );
+    expect(result).toEqual([]);
   });
 });
