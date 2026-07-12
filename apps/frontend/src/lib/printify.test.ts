@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { suggestCategoryForBlueprint, fetchAllPrintifyProducts, filterUnmatchedProducts, mapPrintifyImages, findOrphanedAssets, type AssetProductRef } from './printify';
+import sharp from 'sharp';
+import { suggestCategoryForBlueprint, fetchAllPrintifyProducts, filterUnmatchedProducts, mapPrintifyImages, findOrphanedAssets, pickUploadFormat, upscalePreservingAlpha, type AssetProductRef } from './printify';
 
 describe('suggestCategoryForBlueprint', () => {
   it('returns shirt for blueprint 12 (app default shirt)', () => {
@@ -116,5 +117,37 @@ describe('findOrphanedAssets', () => {
       new Set(['p1']),
     );
     expect(result).toEqual([]);
+  });
+});
+
+describe('pickUploadFormat', () => {
+  it('returns png when the image has an alpha channel', () => {
+    expect(pickUploadFormat(true)).toBe('png');
+  });
+
+  it('returns jpeg when the image has no alpha channel', () => {
+    expect(pickUploadFormat(false)).toBe('jpeg');
+  });
+});
+
+describe('upscalePreservingAlpha', () => {
+  it('preserves alpha and resizes to the target dimensions', async () => {
+    const transparentQuadrant = await sharp({
+      create: { width: 50, height: 50, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    }).png().toBuffer();
+
+    const input = await sharp({
+      create: { width: 100, height: 100, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } },
+    })
+      .composite([{ input: transparentQuadrant, left: 0, top: 0 }])
+      .png()
+      .toBuffer();
+
+    const output = await upscalePreservingAlpha(input, 400);
+    const meta = await sharp(output).metadata();
+
+    expect(meta.hasAlpha).toBe(true);
+    expect(meta.width).toBe(400);
+    expect(meta.height).toBe(400);
   });
 });

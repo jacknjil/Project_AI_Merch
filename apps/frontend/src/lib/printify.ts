@@ -186,6 +186,17 @@ export interface PrintifyImageUpload {
   preview_url: string;
 }
 
+export function pickUploadFormat(hasAlpha: boolean): 'png' | 'jpeg' {
+  return hasAlpha ? 'png' : 'jpeg';
+}
+
+export async function upscalePreservingAlpha(buffer: Buffer, targetSize = 4096): Promise<Buffer> {
+  return sharp(buffer)
+    .resize(targetSize, targetSize, { fit: 'inside', kernel: 'lanczos3' })
+    .png()
+    .toBuffer();
+}
+
 export interface PrintifyProduct {
   id: string;
   title: string;
