@@ -3,9 +3,12 @@ import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
 import { crispUpscale, removeBackground, needsBackgroundRemoval } from '@/lib/recraft';
 import {
   uploadImageToPrintify,
+  uploadBufferToPrintify,
+  upscalePreservingAlpha,
   createPrintifyProduct,
   publishPrintifyProduct,
   getPrintifyMockupImages,
+  type PrintifyImageUpload,
 } from '@/lib/printify';
 
 export const runtime = 'nodejs';
@@ -24,6 +27,8 @@ export async function POST(req: NextRequest) {
 
     let printUrl = String(imageUrl);
     const isApparel = needsBackgroundRemoval(String(productCategory));
+    const fileName = `${assetId}-print.png`;
+    let uploaded: PrintifyImageUpload;
 
     if (isApparel) {
       // Remove background first on the original (~1024px) — upscaled images exceed Recraft's size limit.
@@ -39,24 +44,39 @@ export async function POST(req: NextRequest) {
           { status: 502 },
         );
       }
-      // Then upscale the bg-removed image for print quality
+
+      // Upscale locally, not via Recraft's crispUpscale — crispUpscale unconditionally
+      // flattens transparency to a solid white background before upscaling, which
+      // destroys the transparency removeBackground just produced (confirmed via live
+      // testing 2026-07-12: WEBP hasAlpha:true -> WEBP hasAlpha:false, 47% opaque white).
+      // A failure here blocks the publish for the same reason removeBackground does:
+      // a silent fallback would ship a defective or lower-resolution print file.
       try {
-        printUrl = await crispUpscale(printUrl);
+        const bgRemovedRes = await fetch(printUrl);
+        if (!bgRemovedRes.ok) {
+          throw new Error(`Failed to fetch background-removed image: ${bgRemovedRes.status}`);
+        }
+        const bgRemovedBuffer = Buffer.from(await bgRemovedRes.arrayBuffer());
+        const upscaledBuffer = await upscalePreservingAlpha(bgRemovedBuffer);
+        uploaded = await uploadBufferToPrintify(upscaledBuffer, fileName);
       } catch (upscaleErr) {
-        console.warn('crispUpscale failed, using current URL:', upscaleErr instanceof Error ? upscaleErr.message : upscaleErr);
+        const message = upscaleErr instanceof Error ? upscaleErr.message : String(upscaleErr);
+        console.error('publish-to-printify: upscale/upload failed, blocking publish:', message);
+        return NextResponse.json(
+          { error: `Image upscale failed: ${message}` },
+          { status: 502 },
+        );
       }
     } else {
-      // Non-apparel (drinkware): upscale only — background is part of the design
+      // Non-apparel (drinkware): upscale only — background is part of the design,
+      // no transparency required, so Recraft's crispUpscale remains correct here.
       try {
         printUrl = await crispUpscale(printUrl);
       } catch (upscaleErr) {
         console.warn('crispUpscale failed, using original URL:', upscaleErr instanceof Error ? upscaleErr.message : upscaleErr);
       }
+      uploaded = await uploadImageToPrintify(printUrl, fileName);
     }
-
-    // 3. Upload to Printify image library
-    const fileName = `${assetId}-print.png`;
-    const uploaded = await uploadImageToPrintify(printUrl, fileName);
 
     // 4. Create Printify product
     const description = niche
