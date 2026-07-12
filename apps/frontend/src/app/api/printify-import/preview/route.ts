@@ -5,6 +5,7 @@ import {
   filterUnmatchedProducts,
   suggestCategoryForBlueprint,
   mapPrintifyImages,
+  checkFrontArtworkAlpha,
   type PrintifyProductSummary,
 } from '@/lib/printify';
 
@@ -19,6 +20,8 @@ export interface PreviewItem {
   printProviderId: number;
   suggestedCategory?: string;
   mockupImages: { src: string; label: string; isDefault: boolean }[];
+  // null = couldn't be determined (e.g. no front placeholder found); false = JPEG/no-alpha risk.
+  frontArtworkHasAlpha: boolean | null;
 }
 
 export async function GET() {
@@ -59,14 +62,17 @@ export async function GET() {
 
     const unmatched = filterUnmatchedProducts(products, trackedIds, ignoredIds);
 
-    const items: PreviewItem[] = unmatched.map((p) => ({
-      printifyProductId: p.id,
-      title: p.title,
-      blueprintId: p.blueprint_id,
-      printProviderId: p.print_provider_id,
-      suggestedCategory: suggestCategoryForBlueprint(p.blueprint_id),
-      mockupImages: mapPrintifyImages(p.images ?? []),
-    }));
+    const items: PreviewItem[] = await Promise.all(
+      unmatched.map(async (p) => ({
+        printifyProductId: p.id,
+        title: p.title,
+        blueprintId: p.blueprint_id,
+        printProviderId: p.print_provider_id,
+        suggestedCategory: suggestCategoryForBlueprint(p.blueprint_id),
+        mockupImages: mapPrintifyImages(p.images ?? []),
+        frontArtworkHasAlpha: await checkFrontArtworkAlpha(p.id).catch(() => null),
+      })),
+    );
 
     return NextResponse.json({ products: items });
   } catch (err: unknown) {

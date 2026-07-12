@@ -197,6 +197,45 @@ export async function upscalePreservingAlpha(buffer: Buffer, targetSize = 4096):
     .toBuffer();
 }
 
+export interface PrintifyPlaceholder {
+  position: string;
+  images: { src: string }[];
+}
+
+export interface PrintifyPrintArea {
+  placeholders: PrintifyPlaceholder[];
+}
+
+export function findFrontArtworkSrc(printAreas: PrintifyPrintArea[]): string | null {
+  const front = printAreas[0]?.placeholders?.find((ph) => ph.position === 'front');
+  const src = front?.images?.[0]?.src;
+  return src ? src : null;
+}
+
+export async function hasAlphaChannel(buffer: Buffer): Promise<boolean> {
+  const meta = await sharp(buffer).metadata();
+  return !!meta.hasAlpha;
+}
+
+// Used by the printify-import scan to flag artwork that can never render
+// transparently on dark colors (see docs/superpowers/... alpha-fix memory).
+export async function checkFrontArtworkAlpha(productId: string): Promise<boolean | null> {
+  const { apiKey, shopId } = getCredentials();
+  const res = await fetch(`${PRINTIFY_BASE}/shops/${shopId}/products/${productId}.json`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json() as { print_areas?: PrintifyPrintArea[] };
+  const src = findFrontArtworkSrc(data.print_areas ?? []);
+  if (!src) return null;
+
+  const imgRes = await fetch(src);
+  if (!imgRes.ok) return null;
+  const buffer = Buffer.from(await imgRes.arrayBuffer());
+  return hasAlphaChannel(buffer);
+}
+
 export interface PrintifyProduct {
   id: string;
   title: string;

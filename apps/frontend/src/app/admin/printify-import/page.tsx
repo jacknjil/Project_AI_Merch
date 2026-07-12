@@ -17,6 +17,7 @@ interface PreviewItem {
   printProviderId: number;
   suggestedCategory?: string;
   mockupImages: MockupImage[];
+  frontArtworkHasAlpha: boolean | null;
 }
 
 const CATEGORY_OPTIONS = ['shirt', 'hoodie', 'tote', 'mug', 'cup', 'sticker'];
@@ -151,6 +152,14 @@ export default function PrintifyImportPage() {
               <div className="min-w-[180px]">
                 <div className="font-medium">{item.title}</div>
                 <div className="text-xs text-muted">Blueprint {item.blueprintId}</div>
+                {item.frontArtworkHasAlpha === false && (
+                  <div
+                    className="mt-1 inline-block rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400"
+                    title="This artwork has no transparency (likely a JPEG). It will show a white/solid box behind the design on dark garment colors."
+                  >
+                    ⚠ No transparency — may show a box on dark colors
+                  </div>
+                )}
               </div>
               <select
                 value={categoryDrafts[item.printifyProductId] ?? ''}

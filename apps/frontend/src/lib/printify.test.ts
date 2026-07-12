@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
-import { suggestCategoryForBlueprint, fetchAllPrintifyProducts, filterUnmatchedProducts, mapPrintifyImages, findOrphanedAssets, pickUploadFormat, upscalePreservingAlpha, type AssetProductRef } from './printify';
+import { suggestCategoryForBlueprint, fetchAllPrintifyProducts, filterUnmatchedProducts, mapPrintifyImages, findOrphanedAssets, pickUploadFormat, upscalePreservingAlpha, findFrontArtworkSrc, hasAlphaChannel, type AssetProductRef } from './printify';
 
 describe('suggestCategoryForBlueprint', () => {
   it('returns shirt for blueprint 12 (app default shirt)', () => {
@@ -127,6 +127,51 @@ describe('pickUploadFormat', () => {
 
   it('returns jpeg when the image has no alpha channel', () => {
     expect(pickUploadFormat(false)).toBe('jpeg');
+  });
+});
+
+describe('findFrontArtworkSrc', () => {
+  it('returns the src of the front placeholder image', () => {
+    const printAreas = [
+      {
+        placeholders: [
+          { position: 'back', images: [] },
+          { position: 'front', images: [{ src: 'https://x/front-print.jpg' }] },
+          { position: 'neck', images: [{ src: '' }] },
+        ],
+      },
+    ];
+    expect(findFrontArtworkSrc(printAreas)).toBe('https://x/front-print.jpg');
+  });
+
+  it('returns null when there is no front placeholder', () => {
+    const printAreas = [{ placeholders: [{ position: 'back', images: [] }] }];
+    expect(findFrontArtworkSrc(printAreas)).toBeNull();
+  });
+
+  it('returns null when the front placeholder has no images', () => {
+    const printAreas = [{ placeholders: [{ position: 'front', images: [] }] }];
+    expect(findFrontArtworkSrc(printAreas)).toBeNull();
+  });
+
+  it('returns null when print_areas is empty', () => {
+    expect(findFrontArtworkSrc([])).toBeNull();
+  });
+});
+
+describe('hasAlphaChannel', () => {
+  it('returns true for a PNG buffer with an alpha channel', async () => {
+    const buffer = await sharp({
+      create: { width: 10, height: 10, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    }).png().toBuffer();
+    expect(await hasAlphaChannel(buffer)).toBe(true);
+  });
+
+  it('returns false for a JPEG buffer with no alpha channel', async () => {
+    const buffer = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 255, b: 255 } },
+    }).jpeg().toBuffer();
+    expect(await hasAlphaChannel(buffer)).toBe(false);
   });
 });
 
