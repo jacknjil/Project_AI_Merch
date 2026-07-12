@@ -203,20 +203,20 @@ export interface PrintifyProduct {
   external?: { id: string; handle: string };
 }
 
-export async function uploadImageToPrintify(
-  imageUrl: string,
+export async function uploadBufferToPrintify(
+  buffer: Buffer,
   fileName: string,
 ): Promise<PrintifyImageUpload> {
   const { apiKey } = getCredentials();
 
-  // Fetch server-side — Printify's servers are blocked from img.recraft.ai (CDN bot protection).
-  // Convert to JPEG 80% quality: reduces the 10MB upscaled WebP to ~2-3MB before base64 encoding.
-  const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) throw new Error(`Failed to fetch image for Printify upload: ${imgRes.status}`);
-  const imgBytes = await imgRes.arrayBuffer();
-  const jpegBuffer = await sharp(Buffer.from(imgBytes)).jpeg({ quality: 80 }).toBuffer();
-  const base64 = jpegBuffer.toString('base64');
-  const safeFileName = fileName.replace(/\.[^.]+$/, '') + '.jpg';
+  const meta = await sharp(buffer).metadata();
+  const format = pickUploadFormat(!!meta.hasAlpha);
+
+  const encoded = format === 'png'
+    ? await sharp(buffer).png().toBuffer()
+    : await sharp(buffer).jpeg({ quality: 80 }).toBuffer();
+  const base64 = encoded.toString('base64');
+  const safeFileName = fileName.replace(/\.[^.]+$/, '') + (format === 'png' ? '.png' : '.jpg');
 
   const res = await fetch(`${PRINTIFY_BASE}/uploads/images.json`, {
     method: 'POST',
@@ -230,6 +230,17 @@ export async function uploadImageToPrintify(
   }
 
   return res.json() as Promise<PrintifyImageUpload>;
+}
+
+export async function uploadImageToPrintify(
+  imageUrl: string,
+  fileName: string,
+): Promise<PrintifyImageUpload> {
+  // Fetch server-side — Printify's servers are blocked from img.recraft.ai (CDN bot protection).
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error(`Failed to fetch image for Printify upload: ${imgRes.status}`);
+  const imgBytes = Buffer.from(await imgRes.arrayBuffer());
+  return uploadBufferToPrintify(imgBytes, fileName);
 }
 
 export interface CreateProductOptions {
