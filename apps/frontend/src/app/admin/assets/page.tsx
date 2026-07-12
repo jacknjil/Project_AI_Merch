@@ -332,7 +332,7 @@ export default function AdminAssetsPage() {
                   </button>
                 )}
 
-                {asset.printifyProductId && !asset.mockupImages?.length && (
+                {asset.printifyProductId && (
                   <button
                     onClick={() => refreshMockup(asset)}
                     disabled={refreshingMockupId === asset.id}
