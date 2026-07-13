@@ -22,6 +22,7 @@ export interface Asset {
   imageUrl: string;
   thumbUrl?: string;
   prompt?: string;
+  phrase?: string;
   source?: string;
   createdAt?: number;
   published?: boolean;

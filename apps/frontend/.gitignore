@@ -37,6 +37,9 @@ yarn-error.log*
 firebase-service-account.json
 ops/firebase-admin/serviceAccount.json
 
+# one-off ops script output
+ops/text-overlay-prototype-output.png
+
 # vercel
 .vercel
 

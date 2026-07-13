@@ -2,10 +2,17 @@
 // src/app/api/n8n/create-asset/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { adminDb, adminBucket, FieldValue } from '@/lib/firebaseAdmin';
 import { recraftGenerate, removeBackground, needsBackgroundRemoval, DEFAULT_PRODUCT_CATEGORY } from '@/lib/recraft';
+import { applyTextOverlayWithFallback } from '@/lib/textOverlay';
 
 export const runtime = 'nodejs';
+
+// Bundled at build time (see docs/superpowers/plans/2026-07-13-text-overlay-app-side.md).
+// next.config.js's outputFileTracingIncludes keeps this present in standalone builds.
+const overlayFontBuffer = readFileSync(join(process.cwd(), 'src/lib/fonts/LuckiestGuy-Regular.ttf'));
 
 function log(event: string, data: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), event, ...data }));
@@ -95,6 +102,7 @@ export async function POST(req: NextRequest) {
     const title = (body.title ?? 'AI generated design').toString();
     const style = body.style ? body.style.toString() : '';
     const productCategory = body.product_category ? body.product_category.toString().toLowerCase() : '';
+    const phrase = body.phrase ? body.phrase.toString().trim() : '';
 
     let count = Number(body.count ?? 1);
     if (!Number.isFinite(count) || count < 1) count = 1;
@@ -154,6 +162,7 @@ export async function POST(req: NextRequest) {
             prompt: promptRaw,
             niche,
             style,
+            phrase,
             imageUrl: placeholderUrl,
             thumbUrl: placeholderUrl,
             storagePath: '',
@@ -257,6 +266,14 @@ export async function POST(req: NextRequest) {
       }
       if (!png) continue;
 
+      if (phrase) {
+        try {
+          png = await applyTextOverlayWithFallback(png, phrase, overlayFontBuffer);
+        } catch (overlayErr: any) {
+          log('create_asset.text_overlay_failed', { requestId, rowId, message: String(overlayErr?.message) });
+        }
+      }
+
       const storagePath = `assets/${rowId ?? 'row'}-${jobRef.id}-${Date.now()}-${i + 1}.png`;
       const imageUrl = await uploadPngAndGetUrl(storagePath, png);
 
@@ -265,6 +282,7 @@ export async function POST(req: NextRequest) {
         prompt: promptRaw,
         niche,
         style,
+        phrase,
         imageUrl,
         thumbUrl: imageUrl,
         storagePath,
