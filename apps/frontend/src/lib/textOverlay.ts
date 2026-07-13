@@ -58,6 +58,40 @@ export async function compositeTextOverArt(
     .toBuffer();
 }
 
+// Experimental: Recraft frames its subject nearly full-bleed regardless of
+// prompt wording (measured ~4% top clearance on real generations, well under
+// the safe-zone threshold), so there's often no natural room for text within
+// the art's own canvas. This creates room deterministically by shrinking the
+// art and anchoring it to the bottom of the same-size canvas, instead of
+// relying on Recraft to leave space. Revisit if shrinking noticeably hurts
+// the art's visual impact.
+export async function shrinkArtForTextZone(artBuffer: Buffer, scale: number): Promise<Buffer> {
+  const meta = await sharp(artBuffer).metadata();
+  const canvasWidth = meta.width ?? 0;
+  const canvasHeight = meta.height ?? 0;
+
+  const scaledWidth = Math.max(1, Math.round(canvasWidth * scale));
+  const scaledHeight = Math.max(1, Math.round(canvasHeight * scale));
+
+  const resized = await sharp(artBuffer)
+    .resize(scaledWidth, scaledHeight, { fit: 'inside' })
+    .png()
+    .toBuffer();
+  const resizedMeta = await sharp(resized).metadata();
+  const resizedWidth = resizedMeta.width ?? scaledWidth;
+  const resizedHeight = resizedMeta.height ?? scaledHeight;
+
+  const left = Math.round((canvasWidth - resizedWidth) / 2);
+  const top = canvasHeight - resizedHeight;
+
+  return sharp({
+    create: { width: canvasWidth, height: canvasHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: resized, left, top }])
+    .png()
+    .toBuffer();
+}
+
 export async function applyTextOverlay(
   artBuffer: Buffer,
   phrase: string,

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { getArtBoundingBox, computeTextZone, compositeTextOverArt, applyTextOverlay } from './textOverlay';
+import { getArtBoundingBox, computeTextZone, compositeTextOverArt, applyTextOverlay, shrinkArtForTextZone } from './textOverlay';
 
 const fontBuffer = readFileSync(join(__dirname, 'fonts', 'LuckiestGuy-Regular.ttf'));
 
@@ -67,6 +67,24 @@ describe('compositeTextOverArt', () => {
     const centerY = Math.round(zone.height / 2);
     const idx = (centerY * info.width + centerX) * info.channels;
     expect(data[idx + 3]).toBeGreaterThan(0);
+  });
+});
+
+describe('shrinkArtForTextZone', () => {
+  it('shrinks the art and anchors it to the bottom, freeing space above on the same-size canvas', async () => {
+    const art = await sharp({
+      create: { width: 400, height: 400, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+    }).png().toBuffer();
+
+    const output = await shrinkArtForTextZone(art, 0.75);
+    const meta = await sharp(output).metadata();
+    expect(meta.width).toBe(400);
+    expect(meta.height).toBe(400);
+    expect(meta.hasAlpha).toBe(true);
+
+    const box = await getArtBoundingBox(output);
+    expect(box.top).toBe(100);
+    expect(box.height).toBe(300);
   });
 });
 
