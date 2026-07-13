@@ -12,7 +12,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { recraftGenerate, removeBackground } from '../src/lib/recraft.ts';
 import { hasAlphaChannel } from '../src/lib/printify.ts';
-import { applyTextOverlay, shrinkArtForTextZone } from '../src/lib/textOverlay.ts';
+import { applyTextOverlayWithFallback } from '../src/lib/textOverlay.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -46,16 +46,7 @@ async function run() {
 
   console.log('Compositing text overlay...');
   const fontBuffer = readFileSync(FONT_PATH);
-  let output = await applyTextOverlay(artBuffer, PHRASE, fontBuffer);
-
-  if (output.equals(artBuffer)) {
-    // Recraft left no natural room for text (measured on real generations —
-    // see textOverlay.ts's shrinkArtForTextZone doc comment). Experimental
-    // fallback: shrink the art and retry.
-    console.log('No natural room for text — shrinking art to free space (experimental)...');
-    const shrunk = await shrinkArtForTextZone(artBuffer, 0.75);
-    output = await applyTextOverlay(shrunk, PHRASE, fontBuffer);
-  }
+  const output = await applyTextOverlayWithFallback(artBuffer, PHRASE, fontBuffer);
 
   writeFileSync(OUTPUT_PATH, output);
   console.log(`Done. Wrote ${OUTPUT_PATH}`);

@@ -113,3 +113,20 @@ export async function applyTextOverlay(
 
   return compositeTextOverArt(artBuffer, textPng, zone);
 }
+
+// Combines applyTextOverlay with the shrinkArtForTextZone fallback: try the
+// natural bounding box first, and only shrink if Recraft left no real room.
+// Single source of truth for this retry so callers (the batch route, the
+// manual prototype script) don't duplicate the fallback logic.
+export async function applyTextOverlayWithFallback(
+  artBuffer: Buffer,
+  phrase: string,
+  fontBuffer: Buffer,
+  shrinkScale = 0.75,
+): Promise<Buffer> {
+  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer);
+  if (!output.equals(artBuffer)) return output;
+
+  const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale);
+  return applyTextOverlay(shrunk, phrase, fontBuffer);
+}
