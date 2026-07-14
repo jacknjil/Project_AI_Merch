@@ -36,6 +36,14 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/n8n/create-asset': ['./src/lib/fonts/**'],
   },
+  // opentype.js ships an ESM build (package.json "module") with no default
+  // export, alongside a CJS build (package.json "main") that synthesizes one.
+  // Webpack's bundler prefers "module", so `import opentype from 'opentype.js'`
+  // silently resolves to undefined in the bundled server output (throws
+  // "Cannot read properties of undefined (reading 'parse')" at runtime) even
+  // though it works fine under ts-node/tsx, which resolves "main" instead.
+  // Marking it external forces a native require() of the CJS build at runtime.
+  serverExternalPackages: ['opentype.js'],
 };
 
 module.exports = nextConfig;

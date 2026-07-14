@@ -107,11 +107,24 @@ N8N_SHARED_SECRET              # optional
 
 ## Deployment
 
-Deployed to Firebase App Hosting (Cloud Run). Push to `main` triggers automatic deploy via Cloud Build → `npm run build` → Cloud Run.
+**Production is a GCP VM running the app in Docker via `docker compose`.** This is manual, not automatic — pushing to `main` does NOT deploy by itself.
 
-Config: `apps/frontend/apphosting.yaml` (service: `ai-merch-store`, region: `us-central1`, 0–10 instances).
+Canonical deploy flow, run on the VM (not the n8n host — they are different machines; confirm with `ps aux | grep node` before trusting `docker logs` output):
 
-`next.config.js` uses `output: 'standalone'` for container optimization. Remote image domains are whitelisted for Firebase Storage, Azure DALL-E, and Google Auth profile images.
+```bash
+cd ~/Project_AI_Merch/apps/frontend
+git pull origin main
+sudo docker compose up --build -d
+sudo docker logs ai-merch-frontend --tail 20
+```
+
+- Container name: `ai-merch-frontend`, port 3000, restart policy `unless-stopped`. Restart a stopped container with `sudo docker start ai-merch-frontend`.
+- `docker-compose.yml` lives at `apps/frontend/docker-compose.yml` and reads `.env.production` (not `.env.local`).
+- All docker commands on the VM require `sudo`.
+- **Disk fills up over time** from accumulated image layers/build cache across repeated `--build` runs — if a build fails with `ResourceExhausted: ... no space left on device`, run `df -h` to confirm, then `sudo docker system df` to see the reclaimable breakdown, then `sudo docker builder prune -af` followed by `sudo docker image prune -af` (avoid `--volumes`, it can also wipe named volumes). Both prune commands can be slow to the point of looking hung when the disk is near-full — check `df -h` in a second session for actual progress before assuming it's stuck.
+- `next.config.js` uses `output: 'standalone'` for container optimization. Remote image domains are whitelisted for Firebase Storage, Azure DALL-E, and Google Auth profile images.
+
+**Known open item — TODO, not yet resolved:** `apps/frontend/apphosting.yaml` (service `ai-merch-store`, region `us-central1`) exists from a partial migration to Firebase App Hosting (Cloud Run) that was never finished. It is not live and should not be assumed to be the deploy target. Decide whether to finish that migration or remove the leftover config — until then, the GCP VM above is the only real production target.
 
 ## Key Gotchas
 
