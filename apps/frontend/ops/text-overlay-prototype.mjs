@@ -7,12 +7,13 @@
  *
  * Usage: node --env-file=.env.local --import tsx ops/text-overlay-prototype.mjs
  */
-import { writeFileSync, readFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { recraftGenerate, removeBackground } from '../src/lib/recraft.ts';
 import { hasAlphaChannel } from '../src/lib/printify.ts';
 import { applyTextOverlayWithFallback } from '../src/lib/textOverlay.ts';
+import { resolveOverlayStyle } from '../src/lib/textOverlayStyling.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -24,7 +25,6 @@ const PROMPT = `Anthropic-style vector illustration of an anthropomorphic coffee
 
 const PHRASE = 'ESPRESSO YOURSELF';
 const OUTPUT_PATH = join(__dirname, 'text-overlay-prototype-output.png');
-const FONT_PATH = join(__dirname, '..', 'src', 'lib', 'fonts', 'LuckiestGuy-Regular.ttf');
 
 async function run() {
   console.log('Generating art from Recraft...');
@@ -45,8 +45,12 @@ async function run() {
   }
 
   console.log('Compositing text overlay...');
-  const fontBuffer = readFileSync(FONT_PATH);
-  const output = await applyTextOverlayWithFallback(artBuffer, PHRASE, fontBuffer);
+  const overlayStyle = await resolveOverlayStyle(artBuffer);
+  console.log(`Resolved style: fill=${overlayStyle.fill} stroke=${overlayStyle.stroke}`);
+  const output = await applyTextOverlayWithFallback(artBuffer, PHRASE, overlayStyle.fontBuffer, {
+    fill: overlayStyle.fill,
+    stroke: overlayStyle.stroke,
+  });
 
   writeFileSync(OUTPUT_PATH, output);
   console.log(`Done. Wrote ${OUTPUT_PATH}`);
