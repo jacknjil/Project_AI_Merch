@@ -1,118 +1,287 @@
 # Sheet-Controlled Phrase Override for Text Overlay
 
 **Workflow:** `AI_Merch - Batch from Sheet` (ID `HlxK50rV54KSiNRD`)
-**Supersedes/extends:** `docs/superpowers/specs/2026-07-13-n8n-phrase-prompt-split-design.md` (the prompt/phrase split was drafted but never applied to the live workflow). This spec keeps that draft's GPT prompt/phrase split intact and adds the piece it left open: not every row should get a text overlay, and GPT's per-concept judgment shouldn't be the only control.
+**Supersedes/extends:** `docs/superpowers/specs/2026-07-13-n8n-phrase-prompt-split-design.md`. That draft proposed a JSON-based prompt/phrase split via a new "Parse Prompt+Phrase" Code node. **It was never applied as written.** Live-workflow inspection on 2026-07-15 found that a *different, already-working* prompt/phrase split was built directly into the live workflow at some point (undocumented in this repo) — GPT emits a trailing `PHRASE: <text>` / `PHRASE: NONE` line instead of JSON, and the existing `Build Request` Code node already parses it. This spec was revised in place after that discovery to build on the real live implementation instead of the stale draft.
 
-**Why:** `/api/n8n/create-asset` already gates text-overlay compositing correctly — it only runs when the incoming `phrase` field is a non-empty string (`route.ts` line 269: `if (phrase) { ... }`). The gap is upstream: the live n8n workflow doesn't send a `phrase` field at all yet, and relying purely on GPT's per-concept judgment (as the 07-13 draft proposed) gives no deterministic, auditable control per row. This spec adds a sheet column so a row's phrase can be explicitly authored, explicitly suppressed, or left to GPT — with the resolved outcome written back to the sheet so it's reviewable.
+**Why:** `/api/n8n/create-asset` already gates text-overlay compositing correctly — it only runs when the incoming `phrase` field is a non-empty string (`route.ts` line 269). The live n8n workflow already lets GPT decide, per concept, whether a phrase belongs (`PHRASE: NONE` when nothing fits). What's missing is a **deterministic, auditable override**: a way to explicitly author a phrase, explicitly force no phrase, or explicitly confirm/correct what GPT chose — none of which exist today, since there's no `phrase` column in the sheet and GPT's choice is never written back for review.
+
+---
+
+## Live workflow inspection findings (2026-07-15)
+
+Fetched via `GET /api/v1/workflows/HlxK50rV54KSiNRD` against `https://n8n.jjrsguide.com`. Relevant nodes, as they exist **today**, before this change:
+
+- **"Message a model1"** (`@n8n/n8n-nodes-langchain.openAi`) — system prompt already instructs GPT to output the art prompt, then on its own line: `PHRASE: <short catchphrase>` or `PHRASE: NONE`. **No changes needed to this node.**
+- **"Build Request"** (`n8n-nodes-base.code`) — already extracts GPT's raw text, splits off the trailing `PHRASE:` line via regex (`splitPhrase()`), treats `NONE` (case-insensitive) as empty phrase, and already includes `phrase` in the `request{}` object sent downstream. **This is the node that needs the new precedence logic** (Section 2 below).
+- **"Get row(s) in sheet"** (`n8n-nodes-base.googleSheets`) — no column allowlist; it reads every column present in the sheet dynamically. Adding a `phrase` header to the sheet makes `$json.phrase` available on every row with **zero changes to this node**.
+- **"Update row in sheet"** (`n8n-nodes-base.googleSheets`) — has an explicit write allowlist (`columns.value`): `id, rowId, n8n_status, n8n_error, assetIds, imageUrl, firebaseProductId, published, lastRun, retryCount`. `phrase` is not in it — **this node needs one field added** (Section 3 below).
+- **"Generate assets"** (`n8n-nodes-base.httpRequest`) — POST body already includes `"phrase": "={{ $json.phrase }}"`, reading from the same top-level field `Build Request` sets. **No changes needed to this node.**
+
+Net scope: **one sheet column + edits to exactly two nodes.** No new nodes, no JSON-parsing rework.
 
 ---
 
 ## 1. Products sheet: new `phrase` column
 
-Add a `phrase` column to the Products sheet (`1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM`, Sheet1). Three states:
+Add a `phrase` header to the Products sheet (`1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM`, Sheet1/`gid=164939025`), in the first empty column after `notes`. Three states:
 
 | Cell value | Meaning |
 | --- | --- |
-| Blank | Defer to GPT's per-concept judgment (may invent a short catchphrase, or decide none fits). |
-| Explicit text (e.g. `"Espresso Yourself"`) | Used verbatim as the overlay phrase. GPT may still suggest something, but it's discarded for this row. |
-| `"none"` (case-insensitive) | Forces `phrase = ""` — text overlay is skipped outright, regardless of what GPT would have chosen. |
+| Blank | Defer to GPT's per-concept judgment (its own `PHRASE:` line — a real phrase, or `NONE`). |
+| Explicit text (e.g. `"Espresso Yourself"`) | Used verbatim. GPT's own `PHRASE:` line is discarded for this row. |
+| `"none"` (case-insensitive) | Forces `phrase = ""` — overlay skipped — regardless of GPT's `PHRASE:` line. |
 
-**Precedence when resolving the final phrase:** explicit text > `"none"` sentinel > GPT's invented value.
+**Precedence:** explicit sheet text > `"none"` sentinel > GPT's `PHRASE:` line.
 
-## 2. "Message a model1" node (GPT-4.1-mini) — unchanged from the 07-13 draft
+This is a manual sheet edit (add the header cell), not a code change — no Sheets API automation needed for the column itself.
 
-Still emits `{"prompt": "...", "phrase": "..."}` per row, per the existing draft's prompt language (concept → art prompt, plus GPT's own best-guess phrase or `""`). GPT's `phrase` output is now treated as a *suggestion*, not the final value — resolution happens downstream.
+## 2. "Build Request" node — add precedence logic
 
-## 3. "Parse Prompt+Phrase" Code node — extended with precedence logic
-
-Building on the 07-13 draft's parse node, add sheet-value precedence before setting the final `phrase`:
+**Current `jsCode`** (verified live, 2026-07-15):
 
 ```javascript
-const raw = $input.first().json.message?.content ?? $input.first().json.content ?? '';
-let parsed;
-let parseSucceeded = true;
-try {
-  parsed = JSON.parse(raw);
-} catch {
-  parsed = { prompt: raw, phrase: '' };
-  parseSucceeded = false;
+const row = $json || {};
+const clean = (v) => (v !== undefined && v !== null ? String(v).trim() : '');
+
+const idStr = clean(row.rowId || row.id);
+
+// Extract text from GPT output (handles both string and structured object formats)
+function extractGptText(output) {
+  if (!output) return '';
+  if (typeof output === 'string') return output.trim();
+  if (Array.isArray(output)) {
+    const msg = output[0];
+    if (msg?.content?.[0]?.text) return msg.content[0].text.trim();
+    if (msg?.text) return String(msg.text).trim();
+  }
+  return '';
 }
 
-const sheetPhrase = ($input.first().json.phrase ?? '').toString().trim();
-const isNoneSentinel = sheetPhrase.toLowerCase() === 'none';
+const rawText = extractGptText(row.output);
 
-let finalPhrase;
-let writeBackValue;
-if (sheetPhrase && !isNoneSentinel) {
-  // Explicit text wins outright.
-  finalPhrase = sheetPhrase;
-  writeBackValue = sheetPhrase;
-} else if (isNoneSentinel) {
-  // Explicit suppression.
-  finalPhrase = '';
-  writeBackValue = 'none';
-} else if (!parseSucceeded) {
-  // Blank cell + GPT response didn't parse: technical hiccup, not a real
-  // "no phrase" judgment. Leave the sheet untouched so the row can retry.
-  finalPhrase = '';
-  writeBackValue = sheetPhrase; // stays blank
-} else {
-  // Blank cell, GPT parsed successfully: defer to GPT's judgment. Empty
-  // GPT judgment gets written back as "none" so a blank cell always means
-  // "not yet run," never "ran and decided nothing."
-  finalPhrase = parsed.phrase ?? '';
-  writeBackValue = finalPhrase || 'none';
+// Split off the trailing "PHRASE: ..." line the GPT prompt now appends, so the
+// on-design phrase is composited separately (Recraft can't render legible
+// text) instead of being baked into the art prompt itself.
+function splitPhrase(text) {
+  const match = text.match(/\n?PHRASE:\s*(.*)\s*$/i);
+  if (!match) return { prompt: text, phrase: '' };
+  const phraseValue = match[1].trim();
+  const prompt = text.slice(0, match.index).trim();
+  return { prompt, phrase: phraseValue.toUpperCase() === 'NONE' ? '' : phraseValue };
 }
 
-return [{
-  json: {
-    ...$input.first().json,
-    prompt: parsed.prompt ?? '',
-    phrase: finalPhrase,
-    phraseWriteBack: writeBackValue,
-  },
-}];
+const { prompt: robustPrompt, phrase } = splitPhrase(rawText);
+
+if (!idStr) return { ...row, error: 'Missing ID for matching' };
+if (!robustPrompt) return { ...row, error: 'AI failed to generate a robust prompt' };
+
+const liveValue = row['live-mode'] || row['Live Mode'] || row['livemode'] || '';
+const isLive = String(liveValue).trim().toUpperCase() === 'TRUE';
+
+const GLOBAL_SUFFIX = 'Centered merch graphic, transparent background, print-ready.';
+const finalPrompt = `${robustPrompt}\n\nTechnical Specs: ${GLOBAL_SUFFIX}`;
+
+const imageSize = clean(row.size) || '512x512';
+
+return {
+  ...row,
+  id: idStr,
+  rowid: idStr,
+  processedPrompt: finalPrompt,
+  phrase,
+  request: {
+    id: idStr,
+    prompt: finalPrompt,
+    phrase,
+    mock: isLive ? false : true,
+    size: imageSize,
+    mockAssets: ['mock_image.png'],
+    title: row.title
+  }
+};
 ```
 
-## 4. "Build Request" node — unchanged from the 07-13 draft
+**New `jsCode`** (full replacement):
 
-Still adds `phrase: $json.phrase` to the request object (the resolved final value, not GPT's raw suggestion). This node has a known history of silently dropping fields (previously dropped `title` — see `project_storefront_titles_backfill.md` in memory), so verify `phrase` actually appears in its output panel after a test run.
+```javascript
+const row = $json || {};
+const clean = (v) => (v !== undefined && v !== null ? String(v).trim() : '');
 
-## 5. "Generate assets" HTTP node — unchanged
+const idStr = clean(row.rowId || row.id);
 
-POSTs `"phrase": "{{ $json.phrase }}"` to `/api/n8n/create-asset`. No app-side changes needed — the route already treats empty string and omission identically.
+// Extract text from GPT output (handles both string and structured object formats)
+function extractGptText(output) {
+  if (!output) return '';
+  if (typeof output === 'string') return output.trim();
+  if (Array.isArray(output)) {
+    const msg = output[0];
+    if (msg?.content?.[0]?.text) return msg.content[0].text.trim();
+    if (msg?.text) return String(msg.text).trim();
+  }
+  return '';
+}
 
-## 6. Sheet write-back — new
+const rawText = extractGptText(row.output);
+const gptRespondedSuccessfully = rawText.length > 0;
 
-Extend the existing "Updates the sheet row status" step (the one that already writes `n8n_status`/`lastRun`) to also write `$json.phraseWriteBack` into the row's `phrase` column. This makes every processed row self-documenting:
+// Split off the trailing "PHRASE: ..." line the GPT prompt now appends, so the
+// on-design phrase is composited separately (Recraft can't render legible
+// text) instead of being baked into the art prompt itself.
+function splitPhrase(text) {
+  const match = text.match(/\n?PHRASE:\s*(.*)\s*$/i);
+  if (!match) return { prompt: text, phrase: '' };
+  const phraseValue = match[1].trim();
+  const prompt = text.slice(0, match.index).trim();
+  return { prompt, phrase: phraseValue.toUpperCase() === 'NONE' ? '' : phraseValue };
+}
+
+const { prompt: robustPrompt, phrase: gptPhrase } = splitPhrase(rawText);
+
+// Sheet-column precedence: explicit sheet text always wins over GPT's own
+// suggestion; the "none" sentinel forces no phrase even if GPT would have
+// invented one. A blank sheet cell defers to GPT's judgment.
+const sheetPhrase = clean(row.phrase);
+const isNoneSentinel = sheetPhrase.toLowerCase() === 'none';
+
+let phrase;
+let phraseWriteBack;
+if (sheetPhrase && !isNoneSentinel) {
+  phrase = sheetPhrase;
+  phraseWriteBack = sheetPhrase;
+} else if (isNoneSentinel) {
+  phrase = '';
+  phraseWriteBack = 'none';
+} else if (!gptRespondedSuccessfully) {
+  // Blank cell + GPT produced nothing usable: technical hiccup, not a real
+  // "no phrase" judgment. Leave the sheet untouched so the row can retry.
+  phrase = '';
+  phraseWriteBack = sheetPhrase; // stays blank
+} else {
+  // Blank cell, GPT responded: defer to GPT's judgment. Write back "none"
+  // when GPT decided nothing fits, so a blank cell always means "not yet
+  // run," never "ran and decided nothing."
+  phrase = gptPhrase;
+  phraseWriteBack = gptPhrase || 'none';
+}
+
+// Both early-return error paths must still carry phraseWriteBack — otherwise
+// "Update row in sheet" would receive `undefined` for $json.phraseWriteBack
+// and write an empty string, silently wiping out a manually-set phrase on a
+// row that errored for an unrelated reason (missing ID / bad prompt).
+if (!idStr) return { ...row, error: 'Missing ID for matching', phraseWriteBack };
+if (!robustPrompt) return { ...row, error: 'AI failed to generate a robust prompt', phraseWriteBack };
+
+const liveValue = row['live-mode'] || row['Live Mode'] || row['livemode'] || '';
+const isLive = String(liveValue).trim().toUpperCase() === 'TRUE';
+
+const GLOBAL_SUFFIX = 'Centered merch graphic, transparent background, print-ready.';
+const finalPrompt = `${robustPrompt}\n\nTechnical Specs: ${GLOBAL_SUFFIX}`;
+
+const imageSize = clean(row.size) || '512x512';
+
+return {
+  ...row,
+  id: idStr,
+  rowid: idStr,
+  processedPrompt: finalPrompt,
+  phrase,
+  phraseWriteBack,
+  request: {
+    id: idStr,
+    prompt: finalPrompt,
+    phrase,
+    mock: isLive ? false : true,
+    size: imageSize,
+    mockAssets: ['mock_image.png'],
+    title: row.title
+  }
+};
+```
+
+## 3. "Update row in sheet" node — add write-back
+
+**Current `columns.value`** (verified live, 2026-07-15):
+
+```json
+{
+  "id": "={{ $json.id }}",
+  "rowId": "={{ $json.rowId }}",
+  "n8n_status": "={{ $json.n8n_status }}",
+  "n8n_error": "={{ $json.n8n_error }}",
+  "assetIds": "={{ $json.assetIds }}",
+  "imageUrl": "={{ $json.imageUrl }}",
+  "firebaseProductId": "={{ $json.firebaseProductId }}",
+  "published": "={{ $json.published }}",
+  "lastRun": "={{ $json.lastRun }}",
+  "retryCount": "={{ $json.retryCount }}"
+}
+```
+
+**New `columns.value`** (add one key):
+
+```json
+{
+  "id": "={{ $json.id }}",
+  "rowId": "={{ $json.rowId }}",
+  "n8n_status": "={{ $json.n8n_status }}",
+  "n8n_error": "={{ $json.n8n_error }}",
+  "assetIds": "={{ $json.assetIds }}",
+  "imageUrl": "={{ $json.imageUrl }}",
+  "firebaseProductId": "={{ $json.firebaseProductId }}",
+  "published": "={{ $json.published }}",
+  "lastRun": "={{ $json.lastRun }}",
+  "retryCount": "={{ $json.retryCount }}",
+  "phrase": "={{ $json.phraseWriteBack }}"
+}
+```
+
+Also add a matching entry to `columns.schema` (same shape as the existing `title` entry, which is the closest analog — a plain string column):
+
+```json
+{
+  "id": "phrase",
+  "displayName": "phrase",
+  "required": false,
+  "defaultMatch": false,
+  "display": true,
+  "type": "string",
+  "canBeUsedToMatch": true
+}
+```
+
+Write-back outcomes, per row:
 
 - Explicit text you authored → written back unchanged (no-op, confirms it was used).
 - Blank + GPT invented a phrase → sheet now shows what was actually composited.
 - Blank + GPT decided nothing fits, or explicit `"none"` → sheet shows `"none"`.
-- Blank + GPT parse failure → sheet stays blank, eligible for retry.
+- Blank + GPT produced no usable output at all (extraction failure) → sheet stays blank, eligible for retry.
+- Row errored before reaching the prompt/phrase step (missing ID, empty prompt) → sheet's `phrase` cell is left as whatever `phraseWriteBack` already resolved to (never wiped to blank by an `undefined` template value).
 
-## 7. `CLAUDE.md` documentation
+## 4. "Message a model1" and "Generate assets" nodes — no changes
 
-The Products sheet column list in `CLAUDE.md` needs `phrase` added once this ships (currently not listed — confirmed absent per prior research).
+Both already do exactly what this feature needs: GPT already emits `PHRASE: <text>`/`PHRASE: NONE`, and the HTTP node already forwards `$json.phrase` (set by `Build Request`) to the API. Confirmed by direct inspection of the live workflow JSON on 2026-07-15.
+
+## 5. `CLAUDE.md` documentation
+
+The Products sheet column list in `CLAUDE.md` needs `phrase` added (currently not listed). Also worth a short note in the n8n Automation Layer section that GPT's phrase decision is only a suggestion the sheet can override — the current docs don't mention the `PHRASE:`/`NONE` convention at all, which is itself part of the drift this investigation uncovered.
 
 ---
 
 ## Rollout / Testing
 
-Reusing the 07-13 draft's philosophy (verify on single rows before batch):
-
-1. Add the `phrase` column to the live sheet (blank for all existing rows initially).
-2. Apply the node changes to the live n8n workflow (not a duplicate — small enough to edit directly, but test before enabling batch runs).
+1. Add the `phrase` header to the live sheet (manual edit, blank for all existing rows initially).
+2. Apply the `Build Request` and `Update row in sheet` node changes to the live workflow via the n8n REST API (`PUT /api/v1/workflows/HlxK50rV54KSiNRD`, following the existing pattern in `apps/frontend/ops/n8n-update-workflow.mjs` — GET, locate node by name, replace its `parameters`, PUT back only the API-accepted fields: `name, nodes, connections, settings, staticData`).
 3. Manually set up three test rows to cover all three states:
    - One row with an explicit phrase.
    - One row with `"none"`.
    - One row left blank (GPT judgment).
-4. Run each individually (`n8n_status=todo`), inspect the "Parse Prompt+Phrase" and "Build Request" node output panels to confirm `phrase` resolves as expected in each case.
-5. Confirm the sheet write-back lands correctly for all three cases, including the parse-failure blank-stays-blank behavior (can simulate by temporarily feeding malformed GPT output, or accept as untested-in-practice if that's impractical to trigger deliberately).
-6. Spot-check the resulting Firestore asset's `phrase` field and the composited (or non-composited) image before flipping this on for a full batch run.
+4. Run each individually (`n8n_status=todo`), inspect the `Build Request` node's output panel to confirm `phrase` and `phraseWriteBack` resolve as expected in each case.
+5. Confirm the sheet write-back lands correctly for all three cases.
+6. Spot-check the resulting Firestore asset's `phrase` field and the composited (or non-composited) image before considering this done.
 
 ## Out of scope
 
 - Auditing existing `typography-humor` rows for the row-354-style concept bug (separate open item, tracked independently).
-- The shrink-fallback visual tradeoff (unaffected by this change — `applyTextOverlayWithFallback` already handles it either way, per the 07-13 draft's own note).
-- Any app-side (`route.ts`, `textOverlay.ts`) code changes — none required.
+- The shrink-fallback visual tradeoff (unaffected by this change).
+- Any app-side (`route.ts`, `textOverlay.ts`) code changes — none required; confirmed unchanged from prior investigation.
+- Rewriting `Message a model1`'s prompt language — its existing `PHRASE:`/`NONE` convention already works and needs no changes for this feature.
