@@ -148,7 +148,8 @@ A self-hosted n8n instance at `https://n8n.jjrsguide.com` handles batch asset ge
   2. Reads product rows from the sheet (columns: id, concept/prompt, n8n_status, live-mode, etc.)
   3. **Queue Filter** — validates each row; adds `queue_ok` flag based on `n8n_status` (blank/`todo`/`rate_limited` = eligible).
   4. **Eligible Filter** — passes only rows where `queue_ok === true` to OpenAI and the Merge node, skipping done/error rows without burning API calls.
-  5. GPT-4.1-mini builds a refined prompt from the `concept` field
+  5. GPT-4.1-mini builds a refined prompt from the `concept` field, ending with a `PHRASE: <text>` or `PHRASE: NONE` line for the on-design catchphrase
+  5a. **Build Request** resolves the final phrase with sheet precedence: an explicit `phrase` cell wins outright, `"none"` (case-insensitive) forces no phrase, and a blank cell defers to GPT's `PHRASE:` line. The resolved value is written back to the sheet's `phrase` column (`"none"` if nothing was decided, left blank only on a GPT extraction failure so the row can retry).
   6. **If1 node** gates routing: `live-mode === false` OR `queue_ok === false` → dry-run path; otherwise → Generate assets
   7. **Generate assets** — POSTs to `https://ai-merch.jjrsguide.com/api/n8n/create-asset` with header `x-n8n-secret`
   8. Updates the sheet row status and increments the daily config counter
@@ -158,7 +159,7 @@ A self-hosted n8n instance at `https://n8n.jjrsguide.com` handles batch asset ge
 - **Credential ID:** `3eB88qFdgc8kvhY7` (OAuth2)
 - **Products sheet:** `1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM` — "AI Merch - Asset Generation System", Sheet1 (gid=164939025)
 - **Config sheet:** `1dzzB1dxqgbhijD9hcDFioZHGzUn6BQaU79NNKmr_NkU` — "AI Merch - Config", Sheet1 (gid=1495447911), key=`daily`
-- Product columns: `id`, `rowId`, `title`, `niche`, `concept`, `styleTag`, `colorPalette`, `product_category`, `size`, `priority`, `live-mode`, `n8n_status`, `n8n_error`, `assetIds`, `imageUrl`, `firebaseProductId`, `published`, `lastRun`, `retryCount`, `notes`
+- Product columns: `id`, `rowId`, `title`, `niche`, `concept`, `styleTag`, `colorPalette`, `product_category`, `size`, `priority`, `live-mode`, `n8n_status`, `n8n_error`, `assetIds`, `imageUrl`, `firebaseProductId`, `published`, `lastRun`, `retryCount`, `notes`, `phrase`
 - `n8n_status` drives the queue: blank/`todo`/`rate_limited` = eligible; `done`/`pending`/`error` = skipped
 
 ### AI-Merch API
