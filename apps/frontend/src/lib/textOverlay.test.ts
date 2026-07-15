@@ -117,6 +117,22 @@ describe('applyTextOverlay', () => {
     const output = await applyTextOverlay(canvas, 'ESPRESSO YOURSELF', fontBuffer);
     expect(output.equals(canvas)).toBe(true);
   });
+
+  it('uses the provided fill and stroke colors instead of the defaults', async () => {
+    const canvas = await sharp({
+      create: { width: 1000, height: 1000, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{
+        input: await sharp({ create: { width: 900, height: 700, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } } }).png().toBuffer(),
+        left: 50, top: 250,
+      }])
+      .png().toBuffer();
+
+    const withCustomColors = await applyTextOverlay(canvas, 'HI', fontBuffer, { fill: '#123456', stroke: '#ABCDEF' });
+    const withDefaults = await applyTextOverlay(canvas, 'HI', fontBuffer);
+
+    expect(withCustomColors.equals(withDefaults)).toBe(false);
+  });
 });
 
 describe('applyTextOverlayWithFallback', () => {

@@ -92,10 +92,16 @@ export async function shrinkArtForTextZone(artBuffer: Buffer, scale: number): Pr
     .toBuffer();
 }
 
+export interface OverlayColors {
+  fill?: string;
+  stroke?: string;
+}
+
 export async function applyTextOverlay(
   artBuffer: Buffer,
   phrase: string,
   fontBuffer: Buffer,
+  colors: OverlayColors = {},
 ): Promise<Buffer> {
   const meta = await sharp(artBuffer).metadata();
   const canvasWidth = meta.width ?? 0;
@@ -108,7 +114,12 @@ export async function applyTextOverlay(
   if (zone.height <= 0 || zone.width <= 0) return artBuffer;
 
   const font = loadFont(fontBuffer);
-  const rendered = renderTextToSvg(font, phrase, { maxWidth: zone.width, maxHeight: zone.height });
+  const rendered = renderTextToSvg(font, phrase, {
+    maxWidth: zone.width,
+    maxHeight: zone.height,
+    fill: colors.fill,
+    stroke: colors.stroke,
+  });
   const textPng = await sharp(rendered.svg).png().toBuffer();
 
   return compositeTextOverArt(artBuffer, textPng, zone);
@@ -122,11 +133,12 @@ export async function applyTextOverlayWithFallback(
   artBuffer: Buffer,
   phrase: string,
   fontBuffer: Buffer,
+  colors: OverlayColors = {},
   shrinkScale = 0.75,
 ): Promise<Buffer> {
-  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer);
+  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors);
   if (!output.equals(artBuffer)) return output;
 
   const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale);
-  return applyTextOverlay(shrunk, phrase, fontBuffer);
+  return applyTextOverlay(shrunk, phrase, fontBuffer, colors);
 }
