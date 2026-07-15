@@ -16,7 +16,15 @@ export function loadFontForCategory(category: FontCategory): Buffer {
   const cached = cache.get(category);
   if (cached) return cached;
 
-  const buffer = readFileSync(join(__dirname, 'fonts', FONT_FILES[category]));
+  // process.cwd()-relative, not __dirname: under Next.js's per-route webpack
+  // bundling, __dirname for a module pulled into an API route resolves to
+  // that route's compiled output directory (e.g.
+  // .next/server/app/api/n8n/create-asset/), not this file's source
+  // location — causing ENOENT in production while working locally under
+  // tsx/vitest. process.cwd() stays the app root in both environments, and
+  // next.config.js's outputFileTracingIncludes already copies
+  // src/lib/fonts/** there for the standalone build.
+  const buffer = readFileSync(join(process.cwd(), 'src/lib/fonts', FONT_FILES[category]));
   cache.set(category, buffer);
   return buffer;
 }
