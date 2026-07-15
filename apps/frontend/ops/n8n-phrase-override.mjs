@@ -3,6 +3,12 @@
  * Adds sheet-column phrase-override precedence to the AI_Merch batch workflow:
  *  - Build Request: sheet `phrase` column overrides GPT's PHRASE: line
  *    ("none" forces empty, blank defers to GPT), plus a write-back value.
+ *  - Master parse response: threads phraseWriteBack through from Build
+ *    Request — this node rebuilds the row object from scratch and was
+ *    silently dropping the field (same bug class as the earlier `title`
+ *    drop, see project_storefront_titles_backfill.md). Found via live
+ *    verification: rows resolved a correct phrase but the sheet write-back
+ *    always landed as empty string.
  *  - Update row in sheet: writes the resolved phrase back to the sheet.
  *
  * Usage:
@@ -132,6 +138,39 @@ return {
   }
 };`;
 
+const NEW_MASTER_PARSE_CODE = `let totalGenerated = 0;
+const results = [];
+const allItems = $input.all();
+
+for (let i = 0; i < allItems.length; i++) {
+  const item = allItems[i].json;
+  const data = item.json ? item.json : item;
+
+  const isSuccess = (data.assets && data.assets.length > 0);
+  if (isSuccess) totalGenerated++;
+
+  const originalRow = $('Build Request').all()[i]?.json ?? {};
+  const prevRetryCount = parseInt(originalRow.retryCount) || 0;
+
+  const mappedRow = {
+    rowId:             data.rowId || originalRow.rowId,
+    id:                data.id || data.rowId || originalRow.id,
+    n8n_status:        isSuccess ? "done" : "error",
+    n8n_error:         isSuccess ? "" : "No assets returned",
+    assetIds:          (data.assets && data.assets[0]) ? data.assets[0].assetId : "",
+    imageUrl:          (data.assets && data.assets[0]) ? data.assets[0].imageUrl : "",
+    firebaseProductId: data.firebaseProductId || "",
+    published:         false,
+    lastRun:           new Date().toISOString(),
+    retryCount:        prevRetryCount + 1,
+    phraseWriteBack:   originalRow.phraseWriteBack || ""
+  };
+
+  results.push({ json: mappedRow });
+}
+
+return results;`;
+
 const PHRASE_WRITE_BACK_EXPR = '={{ $json.phraseWriteBack }}';
 const PHRASE_SCHEMA_ENTRY = {
   id: 'phrase',
@@ -149,6 +188,7 @@ async function main() {
 
   const buildRequestIndex = workflow.nodes.findIndex(n => n.name === 'Build Request');
   const updateRowIndex = workflow.nodes.findIndex(n => n.name === 'Update row in sheet');
+  const masterParseIndex = workflow.nodes.findIndex(n => n.name === 'Master parse response');
 
   if (buildRequestIndex === -1) {
     console.error('Node "Build Request" not found');
@@ -158,22 +198,29 @@ async function main() {
     console.error('Node "Update row in sheet" not found');
     process.exit(1);
   }
+  if (masterParseIndex === -1) {
+    console.error('Node "Master parse response" not found');
+    process.exit(1);
+  }
 
   const buildRequestNode = workflow.nodes[buildRequestIndex];
   const updateRowNode = workflow.nodes[updateRowIndex];
+  const masterParseNode = workflow.nodes[masterParseIndex];
 
   const buildRequestUnchanged = buildRequestNode.parameters.jsCode === NEW_BUILD_REQUEST_CODE;
   const updateRowValue = updateRowNode.parameters.columns.value;
   const updateRowValueUnchanged = updateRowValue.phrase === PHRASE_WRITE_BACK_EXPR;
   const updateRowSchemaUnchanged = updateRowNode.parameters.columns.schema.some(s => s.id === 'phrase');
   const updateRowUnchanged = updateRowValueUnchanged && updateRowSchemaUnchanged;
+  const masterParseUnchanged = masterParseNode.parameters.jsCode === NEW_MASTER_PARSE_CODE;
 
-  if (buildRequestUnchanged && updateRowUnchanged) {
-    console.log('Nothing to do — both nodes are already up to date.');
+  if (buildRequestUnchanged && updateRowUnchanged && masterParseUnchanged) {
+    console.log('Nothing to do — all three nodes are already up to date.');
     process.exit(0);
   }
 
   console.log(`\nBuild Request: ${buildRequestUnchanged ? 'already up to date' : 'will update jsCode'}`);
+  console.log(`Master parse response: ${masterParseUnchanged ? 'already up to date' : 'will thread phraseWriteBack through'}`);
   console.log(`Update row in sheet: ${updateRowUnchanged ? 'already up to date' : 'will add phrase mapping'}`);
 
   if (DRY_RUN) {
@@ -185,6 +232,13 @@ async function main() {
     workflow.nodes[buildRequestIndex] = {
       ...buildRequestNode,
       parameters: { ...buildRequestNode.parameters, jsCode: NEW_BUILD_REQUEST_CODE },
+    };
+  }
+
+  if (!masterParseUnchanged) {
+    workflow.nodes[masterParseIndex] = {
+      ...masterParseNode,
+      parameters: { ...masterParseNode.parameters, jsCode: NEW_MASTER_PARSE_CODE },
     };
   }
 
