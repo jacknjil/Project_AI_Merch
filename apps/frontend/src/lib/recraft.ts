@@ -67,6 +67,7 @@ export async function recraftGenerate(options: GenerateOptions): Promise<Recraft
     n: options.n ?? 1,
     size: options.size ?? '1024x1024',
     response_format: 'url',
+    controls: { no_text: true },
   };
   if (substyle) body.substyle = substyle;
 
