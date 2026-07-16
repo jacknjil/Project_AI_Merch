@@ -39,13 +39,19 @@ route.ts
 - **When to use the arc: always, for any `circular`-classified asset** — not merely as a second-tier fallback. This is the correct default look for that shape; rectangular/shield assets are completely unchanged.
 - **Arc overflow: fall back to today's `shrinkArtForTextZone` + straight-line path.** If a phrase can't render legibly along the arc even at minimum size, the existing shrink-and-straight fallback (already in `applyTextOverlayWithFallback`) becomes a third tier. No new failure mode is introduced — worst case for a circular asset with an extra-long phrase looks exactly like it does today.
 
+### Addendum (2026-07-16, post-implementation live testing): shrink-first for circular shapes
+
+Live-testing Task 6 against a real Recraft-generated circular badge surfaced a gap in the "arc overflow" decision above: Recraft's well-documented near-full-bleed generation habit (see the existing `shrinkArtForTextZone` comment — "~4% top clearance on real generations") means a *natural* zone (positive height/width before any shrinking) essentially never exists for circular assets in practice. Since `applyTextOverlay`'s `zone.height <= 0` check fires before the `shape` branch is ever consulted, this meant the arc renderer was skipped almost every time in production, and circular assets fell straight to the pre-existing shrink+straight-line fallback — the exact dead-space-gap problem this feature was built to fix. Confirmed via direct reproduction: `renderArcedTextToSvg` itself renders a correct, clearly-curved SVG (~44° arc span) when given the actual zone dimensions from the live run; the gap was purely in when the arc gets a chance to run, not in the arc math.
+
+**Revised decision:** for `circular` shape, `applyTextOverlayWithFallback` now shrinks the art *unconditionally as a first-class step* (same as today, 25%) whenever the natural zone doesn't work, and *retries the arc renderer on the shrunk art* before ever falling to straight-line text. Only if the arc still doesn't fit on the shrunk art (either no room or `ArcTextTooSmallError` again) does it fall through to straight-line text on the shrunk art — the original ultimate safety net, unchanged in behavior and still guaranteeing no new failure mode beyond what exists today. `rectangular` shape is completely unaffected by this change.
+
 ## Component Changes
 
 1. **`artStyleAnalysis.ts`** — `classifyFontCategory` becomes a combined classifier. The GPT-4o prompt asks for a small JSON object (`{fontCategory, shape}`) instead of a bare category string. `shape` is validated against `'circular' | 'rectangular'` the same way `isFontCategory` validates today; on invalid/missing shape or any API failure, default to `'rectangular'` (today's behavior, unchanged) — same safe-default convention as the existing `DEFAULT_CATEGORY` fallback.
 
 2. **`textRender.ts`** — new `renderArcedTextToSvg(font, text, options)`, a sibling to `renderTextToSvg`. Since glyphs come from `opentype.js` path outlines (not native SVG `<text>`), curving means laying out each character individually: walk the string, accumulate advance widths to get each glyph's angular position along a computed arc, then position + rotate each glyph's path onto that arc (standard circular-text-layout algorithm). Radius follows the fixed-proportion-of-zone-width formula above, reusing the same `maxWidth`/`maxHeight` scaling logic as today's straight renderer.
 
-3. **`textOverlay.ts`** — `applyTextOverlayWithFallback` gains a `shape` parameter and branches to the arced renderer for `'circular'`, falling through to the existing shrink+straight-line fallback if the arc doesn't fit even at minimum legible size.
+3. **`textOverlay.ts`** — `applyTextOverlayWithFallback` gains a `shape` parameter and branches to the arced renderer for `'circular'`. Per the addendum above, on overflow it shrinks the art and retries the arc *before* falling through to the existing straight-line fallback (only used if the arc still doesn't fit on the shrunk art).
 
 4. **`textOverlayStyling.ts`** — `resolveOverlayStyle`'s return type gains `shape`, threaded straight through from `classifyFontCategory`.
 
