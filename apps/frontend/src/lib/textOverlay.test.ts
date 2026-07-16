@@ -133,6 +133,39 @@ describe('applyTextOverlay', () => {
 
     expect(withCustomColors.equals(withDefaults)).toBe(false);
   });
+
+  it('renders visually different output for a circular shape than the default straight rendering', async () => {
+    const canvas = await sharp({
+      create: { width: 1000, height: 1000, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{
+        input: await sharp({ create: { width: 900, height: 700, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } } }).png().toBuffer(),
+        left: 50, top: 250,
+      }])
+      .png().toBuffer();
+
+    const circular = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
+    const straight = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
+
+    expect(circular.equals(straight)).toBe(false);
+  });
+
+  it('returns the original buffer unchanged when circular text cannot fit above the minimum legible arc size', async () => {
+    const opaqueArt = await sharp({
+      create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+    }).png().toBuffer();
+
+    const canvas = await sharp({
+      create: { width: 600, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{ input: opaqueArt, left: 150, top: 400 }])
+      .png()
+      .toBuffer();
+
+    const longPhrase = 'THIS PHRASE IS DEFINITELY WAY TOO LONG TO CURVE LEGIBLY IN THIS SPACE';
+    const output = await applyTextOverlay(canvas, longPhrase, fontBuffer, {}, 'circular');
+    expect(output.equals(canvas)).toBe(true);
+  });
 });
 
 describe('applyTextOverlayWithFallback', () => {
@@ -163,5 +196,27 @@ describe('applyTextOverlayWithFallback', () => {
     const withFallback = await applyTextOverlayWithFallback(canvas, 'ESPRESSO YOURSELF', fontBuffer);
     const direct = await applyTextOverlay(canvas, 'ESPRESSO YOURSELF', fontBuffer);
     expect(withFallback.equals(direct)).toBe(true);
+  });
+
+  it('falls back to shrink + straight-line rendering (never a second arc attempt) when circular text overflows', async () => {
+    const opaqueArt = await sharp({
+      create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+    }).png().toBuffer();
+
+    const canvas = await sharp({
+      create: { width: 600, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{ input: opaqueArt, left: 150, top: 400 }])
+      .png()
+      .toBuffer();
+
+    const longPhrase = 'THIS PHRASE IS DEFINITELY WAY TOO LONG TO CURVE LEGIBLY IN THIS SPACE';
+    const withFallback = await applyTextOverlayWithFallback(canvas, longPhrase, fontBuffer, {}, 0.75, 'circular');
+
+    const shrunk = await shrinkArtForTextZone(canvas, 0.75);
+    const expectedFallbackOutput = await applyTextOverlay(shrunk, longPhrase, fontBuffer, {}, 'rectangular');
+
+    expect(withFallback.equals(canvas)).toBe(false);
+    expect(withFallback.equals(expectedFallbackOutput)).toBe(true);
   });
 });

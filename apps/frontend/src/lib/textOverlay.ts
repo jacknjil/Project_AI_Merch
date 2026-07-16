@@ -1,5 +1,6 @@
 import sharp from 'sharp';
-import { loadFont, renderTextToSvg } from './textRender';
+import { loadFont, renderTextToSvg, renderArcedTextToSvg, ArcTextTooSmallError } from './textRender';
+import type { ArtShape } from './artStyleAnalysis';
 
 export interface BoundingBox {
   left: number;
@@ -102,6 +103,7 @@ export async function applyTextOverlay(
   phrase: string,
   fontBuffer: Buffer,
   colors: OverlayColors = {},
+  shape: ArtShape = 'rectangular',
 ): Promise<Buffer> {
   const meta = await sharp(artBuffer).metadata();
   const canvasWidth = meta.width ?? 0;
@@ -114,31 +116,46 @@ export async function applyTextOverlay(
   if (zone.height <= 0 || zone.width <= 0) return artBuffer;
 
   const font = loadFont(fontBuffer);
-  const rendered = renderTextToSvg(font, phrase, {
+  const renderOptions = {
     maxWidth: zone.width,
     maxHeight: zone.height,
     fill: colors.fill,
     stroke: colors.stroke,
-  });
-  const textPng = await sharp(rendered.svg).png().toBuffer();
+  };
 
+  if (shape === 'circular') {
+    try {
+      const rendered = renderArcedTextToSvg(font, phrase, renderOptions);
+      const textPng = await sharp(rendered.svg).png().toBuffer();
+      return compositeTextOverArt(artBuffer, textPng, zone);
+    } catch (err) {
+      if (!(err instanceof ArcTextTooSmallError)) throw err;
+      return artBuffer;
+    }
+  }
+
+  const rendered = renderTextToSvg(font, phrase, renderOptions);
+  const textPng = await sharp(rendered.svg).png().toBuffer();
   return compositeTextOverArt(artBuffer, textPng, zone);
 }
 
 // Combines applyTextOverlay with the shrinkArtForTextZone fallback: try the
-// natural bounding box first, and only shrink if Recraft left no real room.
-// Single source of truth for this retry so callers (the batch route, the
-// manual prototype script) don't duplicate the fallback logic.
+// natural bounding box first (curved for circular shapes, straight
+// otherwise), and only shrink if that left no real room. The shrink retry
+// always renders straight-line text -- never a second arc attempt -- so a
+// circular asset with an overlong phrase degrades to exactly what it would
+// look like today, no new failure mode.
 export async function applyTextOverlayWithFallback(
   artBuffer: Buffer,
   phrase: string,
   fontBuffer: Buffer,
   colors: OverlayColors = {},
   shrinkScale = 0.75,
+  shape: ArtShape = 'rectangular',
 ): Promise<Buffer> {
-  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors);
+  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape);
   if (!output.equals(artBuffer)) return output;
 
   const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale);
-  return applyTextOverlay(shrunk, phrase, fontBuffer, colors);
+  return applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular');
 }
