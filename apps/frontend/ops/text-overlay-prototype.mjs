@@ -17,13 +17,12 @@ import { resolveOverlayStyle } from '../src/lib/textOverlayStyling.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Doc's original prompt, verbatim — tweaking the wording to "reserve the top
-// third" was tried and measured to make no reliable difference (Recraft still
-// framed the subject nearly full-bleed). Space for text is instead created
-// deterministically below via shrinkArtForTextZone.
-const PROMPT = `Anthropic-style vector illustration of an anthropomorphic coffee mug mascot character, teal ceramic mug with a bold cartoon face (wide open mouth, expressive eyes, one arm raised in a triumphant fist pump), fully contained within frame with even margin on all sides, mug sits on a pile of scattered coffee beans, coffee beans floating around the character, dynamic coffee splash swirl in the background upper-left, bold black outlines, flat vibrant color palette (teal, cream, dark brown, soft pink), comic/cartoon sticker style, clean vector linework, high contrast, centered composition, isolated on transparent background, no text, no lettering, no watermark`;
+// Circular badge composition, deliberately chosen (rather than the original
+// mug mascot prompt) to exercise the new arc-text path -- GPT-4o vision
+// should classify this as shape: 'circular' via analyzeArtStyle.
+const PROMPT = `Anthropic-style vector illustration of a circular vintage badge emblem, bold circular ring border, coffee cup icon centered inside the ring, retro patch/badge composition, flat vibrant color palette (teal, cream, dark brown, soft pink), comic/cartoon sticker style, clean vector linework, high contrast, centered composition, isolated on transparent background, no text, no lettering, no watermark`;
 
-const PHRASE = 'ESPRESSO YOURSELF';
+const PHRASE = "WORLD'S BEST";
 const OUTPUT_PATH = join(__dirname, 'text-overlay-prototype-output.png');
 
 async function run() {
@@ -46,11 +45,15 @@ async function run() {
 
   console.log('Compositing text overlay...');
   const overlayStyle = await resolveOverlayStyle(artBuffer);
-  console.log(`Resolved style: fill=${overlayStyle.fill} stroke=${overlayStyle.stroke}`);
-  const output = await applyTextOverlayWithFallback(artBuffer, PHRASE, overlayStyle.fontBuffer, {
-    fill: overlayStyle.fill,
-    stroke: overlayStyle.stroke,
-  });
+  console.log(`Resolved style: fill=${overlayStyle.fill} stroke=${overlayStyle.stroke} shape=${overlayStyle.shape}`);
+  const output = await applyTextOverlayWithFallback(
+    artBuffer,
+    PHRASE,
+    overlayStyle.fontBuffer,
+    { fill: overlayStyle.fill, stroke: overlayStyle.stroke },
+    0.75,
+    overlayStyle.shape,
+  );
 
   writeFileSync(OUTPUT_PATH, output);
   console.log(`Done. Wrote ${OUTPUT_PATH}`);
