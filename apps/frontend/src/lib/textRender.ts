@@ -73,7 +73,11 @@ export function renderArcedTextToSvg(font: opentype.Font, text: string, options:
     throw new Error(`Cannot render empty or zero-width text: "${text}"`);
   }
 
-  // Same box-fit contract as renderTextToSvg's scale formula.
+  // Same box-fit contract as renderTextToSvg's scale formula, but curving
+  // the glyphs afterward adds vertical sagitta on top of this straight-line
+  // height -- the arc's final `height` can exceed maxHeight, and the
+  // resulting overlap with the art's top rim is the intended patch-badge
+  // look (live-verified), not a bug to fit-check away here.
   const scale = Math.min(maxWidth / ref.width, maxHeight / ref.height);
   const fontSize = REFERENCE_SIZE * scale;
 
