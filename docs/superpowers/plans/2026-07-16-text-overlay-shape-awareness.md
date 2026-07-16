@@ -714,6 +714,96 @@ git commit -m "feat: render curved top-arc text for circular-shaped art"
 
 ---
 
+### Task 4 Revision: shrink-first arc retry (added post-implementation, after live testing)
+
+Live-testing Task 6 against a real Recraft-generated circular badge surfaced a gap: Recraft's near-full-bleed generation habit (documented in the existing `shrinkArtForTextZone` comment) means a natural zone essentially never exists for circular assets, so `applyTextOverlay`'s `zone.height <= 0` early return fires before `shape` is ever consulted — the arc renderer almost never got a chance to run in practice. See the design spec's addendum (`docs/superpowers/specs/2026-07-16-text-overlay-shape-awareness-design.md`, "Addendum (2026-07-16...)") for the full write-up. `renderArcedTextToSvg` itself was confirmed correct via direct reproduction (a real ~44° arc, clearly curved when rasterized standalone) — the gap was purely in fallback ordering, not the arc math.
+
+**Files:**
+- Modify: `apps/frontend/src/lib/textOverlay.ts` (already modified by Task 4 above — this further modifies `applyTextOverlayWithFallback` only)
+- Modify: `apps/frontend/src/lib/textOverlay.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+Add this test to `apps/frontend/src/lib/textOverlay.test.ts`, inside the existing `describe('applyTextOverlayWithFallback', ...)` block, after the `'falls back to shrink + straight-line rendering...'` test added by Task 4:
+
+```typescript
+  it('shrinks then successfully renders arced text on the shrunk art when the natural zone does not exist', async () => {
+    const uniform = await sharp({
+      create: { width: 400, height: 400, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+    }).png().toBuffer();
+
+    const withFallback = await applyTextOverlayWithFallback(uniform, 'HI', fontBuffer, {}, 0.75, 'circular');
+
+    const shrunk = await shrinkArtForTextZone(uniform, 0.75);
+    const straightOnShrunk = await applyTextOverlay(shrunk, 'HI', fontBuffer, {}, 'rectangular');
+
+    expect(withFallback.equals(uniform)).toBe(false);
+    expect(withFallback.equals(straightOnShrunk)).toBe(false);
+  });
+```
+
+This proves the fix: with the buggy (pre-revision) code, `withFallback` would equal `straightOnShrunk` exactly (shrink always forced `'rectangular'`). After the fix, a short phrase like `'HI'` comfortably fits as an arc on the shrunk art's larger zone, so the result must differ from the forced-straight rendering.
+
+Note: the existing Task 4 test `'falls back to shrink + straight-line rendering...'` (added above, using the very long phrase `'THIS PHRASE IS DEFINITELY WAY TOO LONG TO CURVE LEGIBLY IN THIS SPACE'`) remains valid and unchanged — that phrase is long enough to be *width*-constrained, and shrinking only increases the *height* budget (`shrinkArtForTextZone` re-anchors vertically; canvas width is untouched), so it still overflows the arc even after shrinking and still falls through to the ultimate straight-line tier. Do not modify that test.
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `cd apps/frontend && npx vitest run src/lib/textOverlay.test.ts`
+Expected: FAIL — `withFallback.equals(straightOnShrunk)` is currently `true` (the bug), not `false`.
+
+- [ ] **Step 3: Modify the implementation**
+
+In `apps/frontend/src/lib/textOverlay.ts`, replace the `applyTextOverlayWithFallback` function (added by Task 4 above) with:
+
+```typescript
+// Combines applyTextOverlay with the shrinkArtForTextZone fallback. For
+// circular shapes, Recraft's near-full-bleed generation habit means a
+// natural zone rarely exists, so the shrink step happens unconditionally
+// and the arc is retried on the shrunk art -- only falling through to
+// straight-line text if the arc still doesn't fit even then. Rectangular
+// shapes are completely unaffected: unchanged natural-zone-then-shrink
+// behavior, identical to before this feature existed.
+export async function applyTextOverlayWithFallback(
+  artBuffer: Buffer,
+  phrase: string,
+  fontBuffer: Buffer,
+  colors: OverlayColors = {},
+  shrinkScale = 0.75,
+  shape: ArtShape = 'rectangular',
+): Promise<Buffer> {
+  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape);
+  if (!output.equals(artBuffer)) return output;
+
+  const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale);
+
+  if (shape === 'circular') {
+    const shrunkArced = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular');
+    if (!shrunkArced.equals(shrunk)) return shrunkArced;
+  }
+
+  return applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular');
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd apps/frontend && npx vitest run src/lib/textOverlay.test.ts`
+Expected: PASS (15/15)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/frontend/src/lib/textOverlay.ts apps/frontend/src/lib/textOverlay.test.ts
+git commit -m "fix: shrink art before retrying arc render for circular shapes
+
+Recraft's near-full-bleed generation means a natural zone rarely exists for
+circular badges, so the arc renderer almost never ran before falling to the
+old straight-line fallback. Shrink first, then retry the arc on the shrunk
+art, before falling through to straight-line text."
+```
+
+---
+
 ### Task 5: Wire shape into `create-asset/route.ts`
 
 **Files:**
