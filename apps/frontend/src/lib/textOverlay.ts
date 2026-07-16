@@ -139,12 +139,13 @@ export async function applyTextOverlay(
   return compositeTextOverArt(artBuffer, textPng, zone);
 }
 
-// Combines applyTextOverlay with the shrinkArtForTextZone fallback: try the
-// natural bounding box first (curved for circular shapes, straight
-// otherwise), and only shrink if that left no real room. The shrink retry
-// always renders straight-line text -- never a second arc attempt -- so a
-// circular asset with an overlong phrase degrades to exactly what it would
-// look like today, no new failure mode.
+// Combines applyTextOverlay with the shrinkArtForTextZone fallback. For
+// circular shapes, Recraft's near-full-bleed generation habit means a
+// natural zone rarely exists, so the shrink step happens unconditionally
+// and the arc is retried on the shrunk art -- only falling through to
+// straight-line text if the arc still doesn't fit even then. Rectangular
+// shapes are completely unaffected: unchanged natural-zone-then-shrink
+// behavior, identical to before this feature existed.
 export async function applyTextOverlayWithFallback(
   artBuffer: Buffer,
   phrase: string,
@@ -157,5 +158,11 @@ export async function applyTextOverlayWithFallback(
   if (!output.equals(artBuffer)) return output;
 
   const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale);
+
+  if (shape === 'circular') {
+    const shrunkArced = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular');
+    if (!shrunkArced.equals(shrunk)) return shrunkArced;
+  }
+
   return applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular');
 }

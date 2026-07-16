@@ -219,4 +219,18 @@ describe('applyTextOverlayWithFallback', () => {
     expect(withFallback.equals(canvas)).toBe(false);
     expect(withFallback.equals(expectedFallbackOutput)).toBe(true);
   });
+
+  it('shrinks then successfully renders arced text on the shrunk art when the natural zone does not exist', async () => {
+    const uniform = await sharp({
+      create: { width: 400, height: 400, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+    }).png().toBuffer();
+
+    const withFallback = await applyTextOverlayWithFallback(uniform, 'HI', fontBuffer, {}, 0.75, 'circular');
+
+    const shrunk = await shrinkArtForTextZone(uniform, 0.75);
+    const straightOnShrunk = await applyTextOverlay(shrunk, 'HI', fontBuffer, {}, 'rectangular');
+
+    expect(withFallback.equals(uniform)).toBe(false);
+    expect(withFallback.equals(straightOnShrunk)).toBe(false);
+  });
 });
