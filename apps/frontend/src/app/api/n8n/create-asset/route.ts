@@ -265,10 +265,14 @@ export async function POST(req: NextRequest) {
       if (phrase) {
         try {
           const overlayStyle = await resolveOverlayStyle(png, { colorPalette, styleTag: style });
-          png = await applyTextOverlayWithFallback(png, phrase, overlayStyle.fontBuffer, {
-            fill: overlayStyle.fill,
-            stroke: overlayStyle.stroke,
-          });
+          png = await applyTextOverlayWithFallback(
+            png,
+            phrase,
+            overlayStyle.fontBuffer,
+            { fill: overlayStyle.fill, stroke: overlayStyle.stroke },
+            0.75,
+            overlayStyle.shape,
+          );
         } catch (overlayErr: any) {
           log('create_asset.text_overlay_failed', { requestId, rowId, message: String(overlayErr?.message) });
         }
