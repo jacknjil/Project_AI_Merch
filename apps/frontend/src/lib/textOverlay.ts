@@ -59,6 +59,27 @@ export async function compositeTextOverArt(
     .toBuffer();
 }
 
+// Places arced text so the circle it was curved around (the `radius` passed
+// into renderArcedTextToSvg) lines up with the real badge instead of just
+// centering the text block in a bounding zone: `target` is the badge's true
+// apex point in canvas coordinates, `localAnchor` is the pixel offset within
+// textPngBuffer that corresponds to that same apex in the arc's own local
+// coordinate space (renderArcedTextToSvg's anchorX/anchorY).
+export async function compositeArcedTextOverArt(
+  artBuffer: Buffer,
+  textPngBuffer: Buffer,
+  target: { x: number; y: number },
+  localAnchor: { x: number; y: number },
+): Promise<Buffer> {
+  const left = Math.max(0, Math.round(target.x - localAnchor.x));
+  const top = Math.max(0, Math.round(target.y - localAnchor.y));
+
+  return sharp(artBuffer)
+    .composite([{ input: textPngBuffer, left, top }])
+    .png()
+    .toBuffer();
+}
+
 // Experimental: Recraft frames its subject nearly full-bleed regardless of
 // prompt wording (measured ~4% top clearance on real generations, well under
 // the safe-zone threshold), so there's often no natural room for text within
@@ -125,9 +146,19 @@ export async function applyTextOverlay(
 
   if (shape === 'circular') {
     try {
-      const rendered = renderArcedTextToSvg(font, phrase, renderOptions);
+      // Radius comes from the art's own trimmed bounding box, not the
+      // available zone -- for a circular badge that box tightly wraps the
+      // circle, so this is the badge's real rim, not an arbitrary curve.
+      const badgeRadius = (artBox.width + artBox.height) / 4;
+      const badgeCenterX = artBox.left + artBox.width / 2;
+      const rendered = renderArcedTextToSvg(font, phrase, { ...renderOptions, radius: badgeRadius });
       const textPng = await sharp(rendered.svg).png().toBuffer();
-      return compositeTextOverArt(artBuffer, textPng, zone);
+      return compositeArcedTextOverArt(
+        artBuffer,
+        textPng,
+        { x: badgeCenterX, y: artBox.top },
+        { x: rendered.anchorX, y: rendered.anchorY },
+      );
     } catch (err) {
       if (!(err instanceof ArcTextTooSmallError)) throw err;
       return artBuffer;

@@ -44,7 +44,7 @@ describe('renderArcedTextToSvg', () => {
   const font = loadFont(fontBuffer);
 
   it('produces an SVG buffer with one glyph group per character', () => {
-    const result = renderArcedTextToSvg(font, 'HI', { maxWidth: 400, maxHeight: 200 });
+    const result = renderArcedTextToSvg(font, 'HI', { maxWidth: 400, maxHeight: 200, radius: 300 });
     expect(result.svg.toString('utf-8')).toContain('<g transform=');
     expect(result.width).toBeGreaterThan(0);
     expect(result.height).toBeGreaterThan(0);
@@ -52,17 +52,41 @@ describe('renderArcedTextToSvg', () => {
 
   it('produces more vertical extent than the straight-line renderer for the same text and box', () => {
     const straight = renderTextToSvg(font, 'HELLO WORLD', { maxWidth: 700, maxHeight: 300 });
-    const arced = renderArcedTextToSvg(font, 'HELLO WORLD', { maxWidth: 700, maxHeight: 300 });
+    const arced = renderArcedTextToSvg(font, 'HELLO WORLD', { maxWidth: 700, maxHeight: 300, radius: 500 });
     expect(arced.height).toBeGreaterThan(straight.height);
+  });
+
+  it('curves more tightly (more vertical extent) for a smaller radius, given the same text and box', () => {
+    const tight = renderArcedTextToSvg(font, 'HELLO WORLD', { maxWidth: 900, maxHeight: 400, radius: 300 });
+    const loose = renderArcedTextToSvg(font, 'HELLO WORLD', { maxWidth: 900, maxHeight: 400, radius: 1200 });
+    expect(tight.height).toBeGreaterThan(loose.height);
+  });
+
+  it('returns an anchor point matching the rendered SVG bounds', () => {
+    const result = renderArcedTextToSvg(font, 'HI', { maxWidth: 400, maxHeight: 200, radius: 300 });
+    expect(result.anchorX).toBeGreaterThanOrEqual(0);
+    expect(result.anchorX).toBeLessThanOrEqual(result.width);
+    expect(result.anchorY).toBeGreaterThanOrEqual(0);
+    expect(result.anchorY).toBeLessThanOrEqual(result.height);
   });
 
   it('throws ArcTextTooSmallError when the phrase cannot fit above the minimum legible size', () => {
     expect(() =>
-      renderArcedTextToSvg(font, 'AN EXTREMELY LONG PHRASE THAT DEFINITELY WONT FIT', { maxWidth: 100, maxHeight: 20 }),
+      renderArcedTextToSvg(font, 'AN EXTREMELY LONG PHRASE THAT DEFINITELY WONT FIT', {
+        maxWidth: 100,
+        maxHeight: 20,
+        radius: 200,
+      }),
+    ).toThrow(ArcTextTooSmallError);
+  });
+
+  it('throws ArcTextTooSmallError when the radius is too small even though width/height are generous', () => {
+    expect(() =>
+      renderArcedTextToSvg(font, 'HELLO WORLD', { maxWidth: 2000, maxHeight: 2000, radius: 20 }),
     ).toThrow(ArcTextTooSmallError);
   });
 
   it('throws for an empty phrase', () => {
-    expect(() => renderArcedTextToSvg(font, '', { maxWidth: 400, maxHeight: 150 })).toThrow();
+    expect(() => renderArcedTextToSvg(font, '', { maxWidth: 400, maxHeight: 150, radius: 300 })).toThrow();
   });
 });
