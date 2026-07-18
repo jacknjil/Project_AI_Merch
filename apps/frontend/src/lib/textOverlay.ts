@@ -2,6 +2,10 @@ import sharp from 'sharp';
 import { loadFont, renderTextToSvg, renderArcedTextToSvg, ArcTextTooSmallError } from './textRender';
 import type { ArtShape } from './artStyleAnalysis';
 
+// How much looser the arc rides versus the badge's exact measured rim --
+// 1 means flush against the rim, > 1 rides outside it.
+const ARC_RADIUS_SLACK = 1.15;
+
 export interface BoundingBox {
   left: number;
   top: number;
@@ -149,7 +153,10 @@ export async function applyTextOverlay(
       // Radius comes from the art's own trimmed bounding box, not the
       // available zone -- for a circular badge that box tightly wraps the
       // circle, so this is the badge's real rim, not an arbitrary curve.
-      const badgeRadius = (artBox.width + artBox.height) / 4;
+      // ARC_RADIUS_SLACK is a deliberate stylistic loosening applied on top
+      // of that true rim measurement (not baked into it), so the arc rides
+      // slightly outside the badge instead of sitting flush against it.
+      const badgeRadius = ((artBox.width + artBox.height) / 4) * ARC_RADIUS_SLACK;
       const badgeCenterX = artBox.left + artBox.width / 2;
       const rendered = renderArcedTextToSvg(font, phrase, { ...renderOptions, radius: badgeRadius });
       const textPng = await sharp(rendered.svg).png().toBuffer();
