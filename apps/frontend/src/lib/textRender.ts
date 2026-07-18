@@ -33,8 +33,16 @@ export function renderTextToSvg(font: opentype.Font, text: string, options: Rend
     throw new Error(`Cannot render empty or zero-width text: "${text}"`);
   }
 
+  // Floored to a whole pixel: some decorative fonts' glyph outlines have
+  // near-degenerate control points (e.g. the fine "crack" details in
+  // vintage-distressed faces) that self-intersect and fill solid at one
+  // exact fractional font size while rendering correctly a fraction of a
+  // pixel to either side -- live-reproduced with Rye-Regular's "e" at
+  // 183.0819085931389px collapsing into a blob, fixed at 183px. Floor (not
+  // round) so the fit-box guarantee below still holds -- rounding up can
+  // push the final measured size a few px past maxWidth/maxHeight.
   const scale = Math.min(maxWidth / ref.width, maxHeight / ref.height);
-  const fontSize = REFERENCE_SIZE * scale;
+  const fontSize = Math.floor(REFERENCE_SIZE * scale);
   const final = measureAtSize(font, text, fontSize);
   // The bare-number form isn't just decimalPlaces shorthand: opentype.js's
   // toPathData coerces a plain number into { decimalPlaces, flipY: false }.
@@ -78,8 +86,10 @@ export function renderArcedTextToSvg(font: opentype.Font, text: string, options:
   // height -- the arc's final `height` can exceed maxHeight, and the
   // resulting overlap with the art's top rim is the intended patch-badge
   // look (live-verified), not a bug to fit-check away here.
+  // Floored to a whole pixel for the same reason as renderTextToSvg -- see
+  // its comment for the reproduced self-intersecting-glyph landmine.
   const scale = Math.min(maxWidth / ref.width, maxHeight / ref.height);
-  const fontSize = REFERENCE_SIZE * scale;
+  const fontSize = Math.floor(REFERENCE_SIZE * scale);
 
   if (fontSize < MIN_ARC_FONT_SIZE) {
     throw new ArcTextTooSmallError(
