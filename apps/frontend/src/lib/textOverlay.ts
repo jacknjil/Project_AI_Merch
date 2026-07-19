@@ -113,7 +113,11 @@ export async function compositeArcedTextOverArt(
 // art and anchoring it to the bottom of the same-size canvas, instead of
 // relying on Recraft to leave space. Revisit if shrinking noticeably hurts
 // the art's visual impact.
-export async function shrinkArtForTextZone(artBuffer: Buffer, scale: number): Promise<Buffer> {
+export async function shrinkArtForTextZone(
+  artBuffer: Buffer,
+  scale: number,
+  anchor: 'bottom' | 'center' = 'bottom',
+): Promise<Buffer> {
   const meta = await sharp(artBuffer).metadata();
   const canvasWidth = meta.width ?? 0;
   const canvasHeight = meta.height ?? 0;
@@ -130,7 +134,11 @@ export async function shrinkArtForTextZone(artBuffer: Buffer, scale: number): Pr
   const resizedHeight = resizedMeta.height ?? scaledHeight;
 
   const left = Math.round((canvasWidth - resizedWidth) / 2);
-  const top = canvasHeight - resizedHeight;
+  // 'bottom' maximizes room above for a single top phrase (the original,
+  // single-phrase use case). 'center' splits the freed space between top
+  // and bottom instead, needed when a secondary (bottom-arc) phrase also
+  // needs real room -- anchoring flush to the bottom would leave it none.
+  const top = anchor === 'center' ? Math.round((canvasHeight - resizedHeight) / 2) : canvasHeight - resizedHeight;
 
   return sharp({
     create: { width: canvasWidth, height: canvasHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
@@ -250,7 +258,10 @@ export async function applyTextOverlayWithFallback(
   const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape, secondaryPhrase);
   if (!output.equals(artBuffer)) return output;
 
-  const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale);
+  // Only give up bottom-anchoring's larger top margin when there's actually
+  // a secondary phrase that needs room of its own -- single-phrase designs
+  // keep the original (more generous, well-tested) bottom-anchored shrink.
+  const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale, secondaryPhrase ? 'center' : 'bottom');
 
   if (shape === 'circular') {
     const shrunkArced = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular', secondaryPhrase);

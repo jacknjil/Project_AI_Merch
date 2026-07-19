@@ -99,6 +99,35 @@ describe('shrinkArtForTextZone', () => {
     expect(box.top).toBe(100);
     expect(box.height).toBe(300);
   });
+
+  it('defaults to bottom anchoring when anchor is omitted', async () => {
+    const art = await sharp({
+      create: { width: 400, height: 400, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+    }).png().toBuffer();
+
+    const withoutAnchor = await shrinkArtForTextZone(art, 0.75);
+    const withBottomAnchor = await shrinkArtForTextZone(art, 0.75, 'bottom');
+    expect(withoutAnchor.equals(withBottomAnchor)).toBe(true);
+  });
+
+  it('centers the art vertically instead of anchoring to the bottom when anchor is "center", freeing space on both sides', async () => {
+    const art = await sharp({
+      create: { width: 400, height: 400, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+    }).png().toBuffer();
+
+    const output = await shrinkArtForTextZone(art, 0.75, 'center');
+    const meta = await sharp(output).metadata();
+    expect(meta.width).toBe(400);
+    expect(meta.height).toBe(400);
+
+    const box = await getArtBoundingBox(output);
+    expect(box.height).toBe(300);
+    // 400 - 300 = 100px freed total; centered means ~50 above, ~50 below,
+    // not all 100 above like the bottom-anchored case.
+    expect(box.top).toBe(50);
+    const roomBelow = meta.height! - (box.top + box.height);
+    expect(roomBelow).toBe(50);
+  });
 });
 
 describe('applyTextOverlay', () => {
@@ -236,15 +265,18 @@ describe('applyTextOverlay', () => {
       expect(withUnfittingSecondary.equals(primaryOnly)).toBe(true);
     });
 
-    // Regression test for a real production bug (2026-07-19): after the
-    // shrink-fallback fires (near-full-bleed circular art, the common case
-    // for Recraft badges), shrinkArtForTextZone anchors the art flush to the
-    // canvas's bottom edge to free up room above -- which leaves ~zero real
-    // room below. The secondary/bottom arc must correctly detect that (via
-    // its own bottom-zone measurement) and fall back to primary-only,
-    // instead of being fit against the unrelated top zone's generous
-    // (freed-up) height and getting composited overlapping the artwork.
-    it('falls back to primary-only when the shrink fallback leaves no real room below the art, even though the secondary phrase would fit within the (unrelated) freed-up top zone', async () => {
+    // Regression test for a real production bug (2026-07-19, row 146): on a
+    // near-full-bleed circular badge (the common case for Recraft), the old
+    // bottom-anchored shrink fallback left ~zero room below the art, so the
+    // secondary phrase either got composited overlapping the artwork (first
+    // bug, fixed by computeBottomTextZone) or correctly detected no room and
+    // silently dropped (second finding) -- neither produces a visible
+    // tagline. The real fix is shrinkArtForTextZone's 'center' anchor mode
+    // (used automatically whenever a secondaryPhrase is given), which splits
+    // the freed space between top and bottom instead of giving it all to the
+    // top. Confirmed via a live render that both phrases end up legible and
+    // correctly oriented, not just "some buffer difference exists".
+    it('actually renders a visible secondary phrase on a near-full-bleed circular badge, by centering the shrunk art instead of anchoring it to the bottom', async () => {
       const canvasSize = 1024;
       const artDiameter = Math.round(canvasSize * 0.96);
       const artOffset = Math.round((canvasSize - artDiameter) / 2);
@@ -270,7 +302,20 @@ describe('applyTextOverlay', () => {
         'ADVENTURE AWAITS',
       );
 
-      expect(withSecondary.equals(primaryOnly)).toBe(true);
+      // Different from both the untouched canvas and the primary-only
+      // render -- something new was actually composited, not silently
+      // dropped.
+      expect(withSecondary.equals(canvas)).toBe(false);
+      expect(withSecondary.equals(primaryOnly)).toBe(false);
+
+      // The centered shrink itself leaves genuine, roughly symmetric room on
+      // both sides (not ~0 below, which was the root cause of the bug).
+      const centeredArt = await shrinkArtForTextZone(canvas, 0.75, 'center');
+      const artBox = await getArtBoundingBox(centeredArt);
+      const roomAbove = artBox.top;
+      const roomBelow = canvasSize - (artBox.top + artBox.height);
+      expect(roomBelow).toBeGreaterThan(50);
+      expect(roomBelow).toBeCloseTo(roomAbove, -1);
     });
   });
 });
