@@ -73,6 +73,14 @@ export interface RenderArcedTextOptions extends RenderTextOptions {
   // bounding-circle radius (see applyTextOverlay in textOverlay.ts) so the
   // text visually hugs the badge's actual rim, not an arbitrary curve.
   radius: number;
+  // 'top' (default): text rides the top of the circle, apex at the highest
+  // point, dipping down at the ends -- a title arcing over a badge.
+  // 'bottom': text rides the bottom of the circle, apex at the lowest point,
+  // rising at the ends -- a tagline arcing under a badge. This is a true
+  // vertical mirror of the top layout (position AND rotation both flip) so
+  // glyphs stay upright and legible instead of rendering upside down; it is
+  // not a reflection of the glyph paths themselves, which would read backward.
+  direction?: 'top' | 'bottom';
 }
 
 export interface ArcedRenderedText extends RenderedText {
@@ -90,8 +98,12 @@ export interface ArcedRenderedText extends RenderedText {
 // proportional to its cumulative advance width, and rotated to sit tangent
 // to the arc -- the standard manual circular-text-layout technique.
 export function renderArcedTextToSvg(font: opentype.Font, text: string, options: RenderArcedTextOptions): ArcedRenderedText {
-  const { maxWidth, maxHeight, fill = '#2C2C2A', stroke = '#FFFFFF', strokeWidth = 4, radius } = options;
+  const { maxWidth, maxHeight, fill = '#2C2C2A', stroke = '#FFFFFF', strokeWidth = 4, radius, direction = 'top' } = options;
   const REFERENCE_SIZE = 200;
+  // Position (tx) stays direction-agnostic -- only the vertical placement and
+  // rotation mirror for 'bottom', which is what keeps glyphs upright instead
+  // of upside down while still curving the opposite way (see interface doc).
+  const verticalSign = direction === 'bottom' ? -1 : 1;
 
   const chars = Array.from(text);
   const ref = measureAtSize(font, text, REFERENCE_SIZE);
@@ -165,8 +177,9 @@ export function renderArcedTextToSvg(font: opentype.Font, text: string, options:
     const pathData = glyphPath.toPathData(2);
 
     const tx = radius * Math.sin(angle);
-    const ty = radius - radius * Math.cos(angle);
-    const deg = (angle * 180) / Math.PI;
+    const ty = verticalSign * (radius - radius * Math.cos(angle));
+    const rotationAngle = verticalSign * angle;
+    const deg = (rotationAngle * 180) / Math.PI;
 
     glyphGroups.push(
       `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) rotate(${deg.toFixed(2)})">` +
@@ -178,8 +191,11 @@ export function renderArcedTextToSvg(font: opentype.Font, text: string, options:
     // an infinite bounding box for an empty path. Skip those from the
     // overall extent calculation rather than letting Infinity propagate.
     if (Number.isFinite(bbox.x1) && Number.isFinite(bbox.x2) && Number.isFinite(bbox.y1) && Number.isFinite(bbox.y2)) {
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
+      // Must match the actual glyph rotation (rotationAngle, not the raw
+      // angle) or the bbox extent -- and therefore width/height/anchor --
+      // would be computed for a different rotation than what's rendered.
+      const cos = Math.cos(rotationAngle);
+      const sin = Math.sin(rotationAngle);
       const corners: Array<[number, number]> = [
         [bbox.x1, bbox.y1],
         [bbox.x2, bbox.y1],

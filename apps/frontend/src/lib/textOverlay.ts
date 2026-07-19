@@ -45,6 +45,28 @@ export function computeTextZone(
   };
 }
 
+// Mirror of computeTextZone for the area BELOW the art's bounding box --
+// needed separately because it is not generally the same size as the zone
+// above (e.g. after shrinkArtForTextZone anchors the art flush to the
+// canvas bottom, the below-zone collapses to ~0 while the above-zone is
+// generous). Reusing computeTextZone's result for both would size/position
+// bottom-arc text against the wrong budget.
+export function computeBottomTextZone(
+  canvasWidth: number,
+  canvasHeight: number,
+  artBox: BoundingBox,
+  marginPx: number,
+): TextZone {
+  const artBottom = artBox.top + artBox.height;
+  const availableHeight = Math.max(canvasHeight - artBottom - marginPx * 2, 0);
+  return {
+    x: marginPx,
+    y: artBottom + marginPx,
+    width: Math.max(canvasWidth - marginPx * 2, 0),
+    height: availableHeight,
+  };
+}
+
 export async function compositeTextOverArt(
   artBuffer: Buffer,
   textPngBuffer: Buffer,
@@ -129,6 +151,7 @@ export async function applyTextOverlay(
   fontBuffer: Buffer,
   colors: OverlayColors = {},
   shape: ArtShape = 'rectangular',
+  secondaryPhrase?: string,
 ): Promise<Buffer> {
   const meta = await sharp(artBuffer).metadata();
   const canvasWidth = meta.width ?? 0;
@@ -149,18 +172,20 @@ export async function applyTextOverlay(
   };
 
   if (shape === 'circular') {
+    // Radius comes from the art's own trimmed bounding box, not the
+    // available zone -- for a circular badge that box tightly wraps the
+    // circle, so this is the badge's real rim, not an arbitrary curve.
+    // ARC_RADIUS_SLACK is a deliberate stylistic loosening applied on top
+    // of that true rim measurement (not baked into it), so the arc rides
+    // slightly outside the badge instead of sitting flush against it.
+    const badgeRadius = ((artBox.width + artBox.height) / 4) * ARC_RADIUS_SLACK;
+    const badgeCenterX = artBox.left + artBox.width / 2;
+
+    let withPrimary: Buffer;
     try {
-      // Radius comes from the art's own trimmed bounding box, not the
-      // available zone -- for a circular badge that box tightly wraps the
-      // circle, so this is the badge's real rim, not an arbitrary curve.
-      // ARC_RADIUS_SLACK is a deliberate stylistic loosening applied on top
-      // of that true rim measurement (not baked into it), so the arc rides
-      // slightly outside the badge instead of sitting flush against it.
-      const badgeRadius = ((artBox.width + artBox.height) / 4) * ARC_RADIUS_SLACK;
-      const badgeCenterX = artBox.left + artBox.width / 2;
       const rendered = renderArcedTextToSvg(font, phrase, { ...renderOptions, radius: badgeRadius });
       const textPng = await sharp(rendered.svg).png().toBuffer();
-      return compositeArcedTextOverArt(
+      withPrimary = await compositeArcedTextOverArt(
         artBuffer,
         textPng,
         { x: badgeCenterX, y: artBox.top },
@@ -168,7 +193,36 @@ export async function applyTextOverlay(
       );
     } catch (err) {
       if (!(err instanceof ArcTextTooSmallError)) throw err;
-      return artBuffer;
+      withPrimary = artBuffer;
+    }
+
+    if (!secondaryPhrase) return withPrimary;
+
+    // Independent try/catch: the tagline not fitting shouldn't cancel a
+    // title that did fit, and vice versa -- each arc succeeds or falls back
+    // on its own.
+    try {
+      // Must use the zone BELOW the art, not `renderOptions` (which holds
+      // the zone above it) -- see computeBottomTextZone.
+      const bottomZone = computeBottomTextZone(canvasWidth, canvasHeight, artBox, marginPx);
+      const renderedSecondary = renderArcedTextToSvg(font, secondaryPhrase, {
+        maxWidth: bottomZone.width,
+        maxHeight: bottomZone.height,
+        fill: colors.fill,
+        stroke: colors.stroke,
+        radius: badgeRadius,
+        direction: 'bottom',
+      });
+      const secondaryPng = await sharp(renderedSecondary.svg).png().toBuffer();
+      return await compositeArcedTextOverArt(
+        withPrimary,
+        secondaryPng,
+        { x: badgeCenterX, y: artBox.top + artBox.height },
+        { x: renderedSecondary.anchorX, y: renderedSecondary.anchorY },
+      );
+    } catch (err) {
+      if (!(err instanceof ArcTextTooSmallError)) throw err;
+      return withPrimary;
     }
   }
 
@@ -191,16 +245,17 @@ export async function applyTextOverlayWithFallback(
   colors: OverlayColors = {},
   shrinkScale = 0.75,
   shape: ArtShape = 'rectangular',
+  secondaryPhrase?: string,
 ): Promise<Buffer> {
-  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape);
+  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape, secondaryPhrase);
   if (!output.equals(artBuffer)) return output;
 
   const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale);
 
   if (shape === 'circular') {
-    const shrunkArced = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular');
+    const shrunkArced = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular', secondaryPhrase);
     if (!shrunkArced.equals(shrunk)) return shrunkArced;
   }
 
-  return applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular');
+  return applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular', secondaryPhrase);
 }

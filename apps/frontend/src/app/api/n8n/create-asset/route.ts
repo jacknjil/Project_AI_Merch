@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
     const colorPalette = body.colorPalette ? body.colorPalette.toString() : '';
     const productCategory = body.product_category ? body.product_category.toString().toLowerCase() : '';
     const phrase = body.phrase ? body.phrase.toString().trim() : '';
+    const phraseSecondary = body.phraseSecondary ? body.phraseSecondary.toString().trim() : '';
 
     let count = Number(body.count ?? 1);
     if (!Number.isFinite(count) || count < 1) count = 1;
@@ -159,6 +160,7 @@ export async function POST(req: NextRequest) {
             niche,
             style,
             phrase,
+            phraseSecondary,
             imageUrl: placeholderUrl,
             thumbUrl: placeholderUrl,
             storagePath: '',
@@ -262,7 +264,7 @@ export async function POST(req: NextRequest) {
       }
       if (!png) continue;
 
-      if (phrase) {
+      if (phrase || phraseSecondary) {
         try {
           const overlayStyle = await resolveOverlayStyle(png, { colorPalette, styleTag: style });
           png = await applyTextOverlayWithFallback(
@@ -272,6 +274,7 @@ export async function POST(req: NextRequest) {
             { fill: overlayStyle.fill, stroke: overlayStyle.stroke },
             0.75,
             overlayStyle.shape,
+            phraseSecondary || undefined,
           );
         } catch (overlayErr: any) {
           log('create_asset.text_overlay_failed', { requestId, rowId, message: String(overlayErr?.message) });
@@ -287,6 +290,7 @@ export async function POST(req: NextRequest) {
         niche,
         style,
         phrase,
+        phraseSecondary,
         imageUrl,
         thumbUrl: imageUrl,
         storagePath,

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { getArtBoundingBox, computeTextZone, compositeTextOverArt, applyTextOverlay, shrinkArtForTextZone, applyTextOverlayWithFallback } from './textOverlay';
+import { getArtBoundingBox, computeTextZone, computeBottomTextZone, compositeTextOverArt, applyTextOverlay, shrinkArtForTextZone, applyTextOverlayWithFallback } from './textOverlay';
 
 const fontBuffer = readFileSync(join(__dirname, 'fonts', 'LuckiestGuy-Regular.ttf'));
 
@@ -41,6 +41,19 @@ describe('computeTextZone', () => {
 
   it('returns zero height when the art leaves no room above it', () => {
     const zone = computeTextZone(1000, 1000, { left: 0, top: 10, width: 1000, height: 990 }, 40);
+    expect(zone.height).toBe(0);
+  });
+});
+
+describe('computeBottomTextZone', () => {
+  it('reserves the area below the art bounding box, inset by the margin', () => {
+    const zone = computeBottomTextZone(1000, 1000, { left: 100, top: 200, width: 800, height: 500 }, 40);
+    // art bottom = 200 + 500 = 700; below-space = 1000 - 700 = 300, minus 2x margin
+    expect(zone).toEqual({ x: 40, y: 740, width: 920, height: 220 });
+  });
+
+  it('returns zero height when the art leaves no room below it', () => {
+    const zone = computeBottomTextZone(1000, 1000, { left: 0, top: 10, width: 1000, height: 980 }, 40);
     expect(zone.height).toBe(0);
   });
 });
@@ -165,6 +178,100 @@ describe('applyTextOverlay', () => {
     const longPhrase = 'THIS PHRASE IS DEFINITELY WAY TOO LONG TO CURVE LEGIBLY IN THIS SPACE';
     const output = await applyTextOverlay(canvas, longPhrase, fontBuffer, {}, 'circular');
     expect(output.equals(canvas)).toBe(true);
+  });
+
+  describe('secondaryPhrase', () => {
+    // Room above AND below the art's bounding box, unlike the tighter
+    // fixtures above which only ever needed room above it.
+    async function canvasWithRoomOnBothSides() {
+      const opaqueArt = await sharp({
+        create: { width: 700, height: 500, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+      }).png().toBuffer();
+
+      return sharp({
+        create: { width: 1000, height: 1000, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: opaqueArt, left: 150, top: 150 }])
+        .png()
+        .toBuffer();
+    }
+
+    it('omitting secondaryPhrase produces identical output to today (regression guard)', async () => {
+      const canvas = await canvasWithRoomOnBothSides();
+      const withoutArg = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
+      const withUndefined = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular', undefined);
+      expect(withoutArg.equals(withUndefined)).toBe(true);
+    });
+
+    it('composites a visibly different result when a fitting secondaryPhrase is provided, for a circular shape', async () => {
+      const canvas = await canvasWithRoomOnBothSides();
+      const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
+      const withSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular', 'BYE');
+      expect(withSecondary.equals(primaryOnly)).toBe(false);
+      expect(withSecondary.equals(canvas)).toBe(false);
+    });
+
+    it('ignores secondaryPhrase for a rectangular shape (deferred, not yet supported)', async () => {
+      const canvas = await canvasWithRoomOnBothSides();
+      const withoutSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
+      const withSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', 'BYE');
+      expect(withSecondary.equals(withoutSecondary)).toBe(true);
+    });
+
+    it('falls back to primary-only output when secondaryPhrase cannot fit, without throwing', async () => {
+      const opaqueArt = await sharp({
+        create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+      }).png().toBuffer();
+
+      const canvas = await sharp({
+        create: { width: 600, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: opaqueArt, left: 150, top: 400 }])
+        .png()
+        .toBuffer();
+
+      const longSecondary = 'THIS SECONDARY PHRASE IS DEFINITELY WAY TOO LONG TO CURVE LEGIBLY IN THIS TINY SPACE';
+      const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
+      const withUnfittingSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular', longSecondary);
+      expect(withUnfittingSecondary.equals(primaryOnly)).toBe(true);
+    });
+
+    // Regression test for a real production bug (2026-07-19): after the
+    // shrink-fallback fires (near-full-bleed circular art, the common case
+    // for Recraft badges), shrinkArtForTextZone anchors the art flush to the
+    // canvas's bottom edge to free up room above -- which leaves ~zero real
+    // room below. The secondary/bottom arc must correctly detect that (via
+    // its own bottom-zone measurement) and fall back to primary-only,
+    // instead of being fit against the unrelated top zone's generous
+    // (freed-up) height and getting composited overlapping the artwork.
+    it('falls back to primary-only when the shrink fallback leaves no real room below the art, even though the secondary phrase would fit within the (unrelated) freed-up top zone', async () => {
+      const canvasSize = 1024;
+      const artDiameter = Math.round(canvasSize * 0.96);
+      const artOffset = Math.round((canvasSize - artDiameter) / 2);
+
+      const circleSvg = `<svg width="${artDiameter}" height="${artDiameter}"><circle cx="${artDiameter / 2}" cy="${artDiameter / 2}" r="${artDiameter / 2}" fill="rgb(120,80,40)"/></svg>`;
+      const circleArt = await sharp(Buffer.from(circleSvg)).png().toBuffer();
+
+      const canvas = await sharp({
+        create: { width: canvasSize, height: canvasSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: circleArt, left: artOffset, top: artOffset }])
+        .png()
+        .toBuffer();
+
+      const primaryOnly = await applyTextOverlayWithFallback(canvas, 'WANDERLUST', fontBuffer, {}, 0.75, 'circular');
+      const withSecondary = await applyTextOverlayWithFallback(
+        canvas,
+        'WANDERLUST',
+        fontBuffer,
+        {},
+        0.75,
+        'circular',
+        'ADVENTURE AWAITS',
+      );
+
+      expect(withSecondary.equals(primaryOnly)).toBe(true);
+    });
   });
 });
 
