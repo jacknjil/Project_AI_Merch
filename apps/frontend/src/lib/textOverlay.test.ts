@@ -81,6 +81,57 @@ describe('compositeTextOverArt', () => {
     const idx = (centerY * info.width + centerX) * info.channels;
     expect(data[idx + 3]).toBeGreaterThan(0);
   });
+
+  // Regression test for a real production bug (2026-07-20, row 308): the
+  // secondary phrase rendered but was cut off mid-word. Root cause traced to
+  // this function only clamping the *lower* bound of the composite position
+  // (Math.max(0, ...)) -- if a rendered overlay is ever even slightly wider
+  // than the zone it was fit against, the centering math can push
+  // `left + textWidth` past the canvas edge, where sharp's composite()
+  // silently crops the overflow instead of erroring. Confirmed via a direct
+  // test of sharp's own composite behavior: an overlay positioned past the
+  // base image's bounds is cropped with no warning. This test proves the
+  // fix by putting a distinct marker color on the overlay's trailing edge and
+  // confirming it survives compositing instead of being clipped off-canvas.
+  it('clamps the composite position so an overlay wider than its zone never gets silently edge-clipped', async () => {
+    const overlayWidth = 180;
+    const overlayHeight = 40;
+    const markerWidth = 5;
+
+    const overlay = await sharp({
+      create: { width: overlayWidth, height: overlayHeight, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } },
+    })
+      .composite([{
+        input: await sharp({
+          create: { width: markerWidth, height: overlayHeight, channels: 4, background: { r: 0, g: 0, b: 255, alpha: 1 } },
+        }).png().toBuffer(),
+        left: overlayWidth - markerWidth,
+        top: 0,
+      }])
+      .png()
+      .toBuffer();
+
+    const canvas = await sharp({
+      create: { width: 200, height: 100, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    }).png().toBuffer();
+
+    // Zone is positioned such that naive centering would place the overlay's
+    // right edge well past the 200px canvas width (100 + (50-180)/2 = 35;
+    // 35 + 180 = 215 > 200).
+    const zone = { x: 100, y: 0, width: 50, height: 50 };
+    const output = await compositeTextOverArt(canvas, overlay, zone);
+
+    const { data, info } = await sharp(output).raw().toBuffer({ resolveWithObject: true });
+    let foundMarker = false;
+    for (let i = 0; i < info.width * info.height; i++) {
+      const idx = i * info.channels;
+      if (data[idx] < 20 && data[idx + 1] < 20 && data[idx + 2] > 200 && data[idx + 3] > 200) {
+        foundMarker = true;
+        break;
+      }
+    }
+    expect(foundMarker).toBe(true);
+  });
 });
 
 describe('shrinkArtForTextZone', () => {

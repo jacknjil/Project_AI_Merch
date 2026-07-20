@@ -72,12 +72,25 @@ export async function compositeTextOverArt(
   textPngBuffer: Buffer,
   zone: TextZone,
 ): Promise<Buffer> {
-  const textMeta = await sharp(textPngBuffer).metadata();
+  const [artMeta, textMeta] = await Promise.all([
+    sharp(artBuffer).metadata(),
+    sharp(textPngBuffer).metadata(),
+  ]);
   const textWidth = textMeta.width ?? 0;
   const textHeight = textMeta.height ?? 0;
+  const canvasWidth = artMeta.width ?? 0;
+  const canvasHeight = artMeta.height ?? 0;
 
-  const left = Math.max(0, Math.round(zone.x + (zone.width - textWidth) / 2));
-  const top = Math.max(0, Math.round(zone.y + (zone.height - textHeight) / 2));
+  const idealLeft = zone.x + (zone.width - textWidth) / 2;
+  const idealTop = zone.y + (zone.height - textHeight) / 2;
+
+  // Clamp on both ends, not just >= 0 -- sharp's composite() silently crops
+  // an overlay that extends past the base canvas instead of erroring, so if
+  // the rendered overlay is ever even slightly wider/taller than the zone it
+  // was fit against, naive centering can push it off the right/bottom edge
+  // and quietly truncate the text with no error surfaced anywhere.
+  const left = Math.round(Math.min(Math.max(0, idealLeft), Math.max(0, canvasWidth - textWidth)));
+  const top = Math.round(Math.min(Math.max(0, idealTop), Math.max(0, canvasHeight - textHeight)));
 
   return sharp(artBuffer)
     .composite([{ input: textPngBuffer, left, top }])
