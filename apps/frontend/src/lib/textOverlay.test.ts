@@ -240,11 +240,36 @@ describe('applyTextOverlay', () => {
       expect(withSecondary.equals(canvas)).toBe(false);
     });
 
-    it('ignores secondaryPhrase for a rectangular shape (deferred, not yet supported)', async () => {
+    it('composites a visibly different result when a fitting secondaryPhrase is provided, for a rectangular shape', async () => {
       const canvas = await canvasWithRoomOnBothSides();
-      const withoutSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
+      const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
       const withSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', 'BYE');
-      expect(withSecondary.equals(withoutSecondary)).toBe(true);
+      expect(withSecondary.equals(primaryOnly)).toBe(false);
+      expect(withSecondary.equals(canvas)).toBe(false);
+    });
+
+    it('omitting secondaryPhrase produces identical output to today for a rectangular shape (regression guard)', async () => {
+      const canvas = await canvasWithRoomOnBothSides();
+      const withoutArg = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
+      const withUndefined = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', undefined);
+      expect(withoutArg.equals(withUndefined)).toBe(true);
+    });
+
+    it('renders primary only, without throwing, when there is no room below the art for a rectangular secondary phrase', async () => {
+      const opaqueArt = await sharp({
+        create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+      }).png().toBuffer();
+
+      const canvas = await sharp({
+        create: { width: 600, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: opaqueArt, left: 150, top: 470 }])
+        .png()
+        .toBuffer();
+
+      const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
+      const withSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', 'BYE');
+      expect(withSecondary.equals(primaryOnly)).toBe(true);
     });
 
     it('falls back to primary-only output when secondaryPhrase cannot fit, without throwing', async () => {

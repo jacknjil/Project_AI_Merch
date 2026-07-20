@@ -236,7 +236,24 @@ export async function applyTextOverlay(
 
   const rendered = renderTextToSvg(font, phrase, renderOptions);
   const textPng = await sharp(rendered.svg).png().toBuffer();
-  return compositeTextOverArt(artBuffer, textPng, zone);
+  const withPrimary = await compositeTextOverArt(artBuffer, textPng, zone);
+
+  if (!secondaryPhrase) return withPrimary;
+
+  // Straight text (not arced) below the art, mirroring the circular branch's
+  // top/bottom split -- a shield/banner has no rim to curve text around, but
+  // the same "reserve the zone below the art" logic still applies.
+  const bottomZone = computeBottomTextZone(canvasWidth, canvasHeight, artBox, marginPx);
+  if (bottomZone.height <= 0 || bottomZone.width <= 0) return withPrimary;
+
+  const renderedSecondary = renderTextToSvg(font, secondaryPhrase, {
+    maxWidth: bottomZone.width,
+    maxHeight: bottomZone.height,
+    fill: colors.fill,
+    stroke: colors.stroke,
+  });
+  const secondaryPng = await sharp(renderedSecondary.svg).png().toBuffer();
+  return compositeTextOverArt(withPrimary, secondaryPng, bottomZone);
 }
 
 // Combines applyTextOverlay with the shrinkArtForTextZone fallback. For
