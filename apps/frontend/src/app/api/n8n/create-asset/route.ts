@@ -264,7 +264,16 @@ export async function POST(req: NextRequest) {
       }
       if (!png) continue;
 
+      // null = no phrase was requested for this asset; true/false = whether
+      // the overlay pipeline actually changed the pixels. applyTextOverlay's
+      // internal "no room" paths return the input buffer byte-for-byte
+      // unchanged rather than throwing (see textOverlay.ts), so a request
+      // that fails to fit produces no exception and previously no log line --
+      // exactly what happened silently on asset rowId 284 before this check.
+      let overlayApplied: boolean | null = null;
+
       if (phrase || phraseSecondary) {
+        const preOverlayPng = png;
         try {
           const overlayStyle = await resolveOverlayStyle(png, { colorPalette, styleTag: style });
           png = await applyTextOverlayWithFallback(
@@ -276,7 +285,12 @@ export async function POST(req: NextRequest) {
             overlayStyle.shape,
             phraseSecondary || undefined,
           );
+          overlayApplied = !png.equals(preOverlayPng);
+          if (!overlayApplied) {
+            log('create_asset.text_overlay_no_room', { requestId, rowId, phrase, phraseSecondary });
+          }
         } catch (overlayErr: any) {
+          overlayApplied = false;
           log('create_asset.text_overlay_failed', { requestId, rowId, message: String(overlayErr?.message) });
         }
       }
@@ -291,6 +305,7 @@ export async function POST(req: NextRequest) {
         style,
         phrase,
         phraseSecondary,
+        overlayApplied,
         imageUrl,
         thumbUrl: imageUrl,
         storagePath,
