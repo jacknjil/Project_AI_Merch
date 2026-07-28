@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore';
 import FilterBar from '@/components/FilterBar';
+import { countByValue } from '@/lib/filterUtils';
 
 type Asset = {
   id: string;
@@ -84,17 +85,9 @@ export default function GalleryPage() {
     };
   }, []);
 
-  const niches = useMemo(() => {
-    const set = new Set<string>();
-    for (const a of assets) if (a.niche) set.add(a.niche);
-    return Array.from(set).sort();
-  }, [assets]);
+  const niches = useMemo(() => countByValue(assets, (a) => a.niche), [assets]);
 
-  const styles = useMemo(() => {
-    const set = new Set<string>();
-    for (const a of assets) if (a.style) set.add(a.style);
-    return Array.from(set).sort();
-  }, [assets]);
+  const styles = useMemo(() => countByValue(assets, (a) => a.style), [assets]);
 
   const filtered = useMemo(() => {
     let result = assets;

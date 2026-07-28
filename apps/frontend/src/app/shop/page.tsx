@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import FilterBar from '@/components/FilterBar';
+import { countByValue } from '@/lib/filterUtils';
 import ProductTileImage, { MockupImage } from '@/components/shop/ProductTileImage';
 
 type ProductDoc = {
@@ -93,23 +94,11 @@ export default function ShopPage() {
     load();
   }, []);
 
-  const niches = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of products) if (p.niche) set.add(p.niche);
-    return Array.from(set).sort();
-  }, [products]);
+  const niches = useMemo(() => countByValue(products, (p) => p.niche), [products]);
 
-  const styles = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of products) if (p.style) set.add(p.style);
-    return Array.from(set).sort();
-  }, [products]);
+  const styles = useMemo(() => countByValue(products, (p) => p.style), [products]);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of products) if (p.product_category) set.add(p.product_category);
-    return Array.from(set).sort();
-  }, [products]);
+  const categories = useMemo(() => countByValue(products, (p) => p.product_category), [products]);
 
   const filtered = useMemo(() => {
     let result = products;
