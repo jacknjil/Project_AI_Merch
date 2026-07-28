@@ -85,9 +85,19 @@ export default function GalleryPage() {
     };
   }, []);
 
-  const niches = useMemo(() => countByValue(assets, (a) => a.niche), [assets]);
+  // Each dimension's options are computed against whatever the OTHER dimension
+  // currently has active, so a value only appears (with an accurate count) if
+  // it actually co-occurs with the current selection — you can never click
+  // into a niche/style combination that has zero matching assets.
+  const niches = useMemo(
+    () => countByValue(activeStyle ? assets.filter((a) => a.style === activeStyle) : assets, (a) => a.niche),
+    [assets, activeStyle]
+  );
 
-  const styles = useMemo(() => countByValue(assets, (a) => a.style), [assets]);
+  const styles = useMemo(
+    () => countByValue(activeNiche ? assets.filter((a) => a.niche === activeNiche) : assets, (a) => a.style),
+    [assets, activeNiche]
+  );
 
   const filtered = useMemo(() => {
     let result = assets;
