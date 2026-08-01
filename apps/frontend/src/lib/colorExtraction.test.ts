@@ -9,16 +9,16 @@ async function solidCanvas(r: number, g: number, b: number): Promise<Buffer> {
 }
 
 describe('deriveTextColors', () => {
-  it('picks a white fill with black stroke for a dark image', async () => {
+  it('picks a light, high-contrast fill for a dark image', async () => {
     const canvas = await solidCanvas(0, 0, 0);
     const result = await deriveTextColors(canvas);
-    expect(result).toEqual({ fill: '#FFFFFF', stroke: '#000000' });
+    expect(result).toEqual({ fill: '#B5603F', stroke: '#000000' });
   });
 
-  it('picks a black fill with white stroke for a light image', async () => {
+  it('picks a dark, high-contrast fill for a light image', async () => {
     const canvas = await solidCanvas(255, 255, 255);
     const result = await deriveTextColors(canvas);
-    expect(result).toEqual({ fill: '#000000', stroke: '#FFFFFF' });
+    expect(result).toEqual({ fill: '#6B2E3A', stroke: '#FFFFFF' });
   });
 
   it('falls back to the default pair when extraction fails', async () => {

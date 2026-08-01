@@ -70,15 +70,6 @@ export function circularHueDistance(a: number, b: number): number {
   return diff > 180 ? 360 - diff : diff;
 }
 
-async function extractDominantColor(artBuffer: Buffer): Promise<Rgb> {
-  const box = await getArtBoundingBox(artBuffer);
-  const region = await sharp(artBuffer)
-    .extract({ left: box.left, top: box.top, width: box.width, height: box.height })
-    .resize(1, 1, { fit: 'fill' })
-    .raw()
-    .toBuffer();
-  return { r: region[0], g: region[1], b: region[2] };
-}
 
 function toHex({ r, g, b }: Rgb): string {
   const h = (n: number) => n.toString(16).padStart(2, '0');
@@ -101,15 +92,17 @@ export function contrastRatio(a: Rgb, b: Rgb): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-// Fill is the near-inverse of the art's dominant color (reads as distinct
-// from the background); stroke is whichever of black/white contrasts more
-// against that fill, guaranteeing legibility without hardcoding either.
+// Fill is picked from a small curated palette by contrast + hue fit against
+// the art's own extracted dominant clusters (see pickFillColor) -- never a
+// mathematically-derived/inverted color. Stroke is whichever of black/white
+// contrasts more against that fill, guaranteeing legibility without
+// hardcoding either.
 export async function deriveTextColors(artBuffer: Buffer): Promise<ColorPair> {
   try {
-    const dominant = await extractDominantColor(artBuffer);
-    const fillRgb: Rgb = { r: 255 - dominant.r, g: 255 - dominant.g, b: 255 - dominant.b };
+    const fillColor = await pickFillColor(artBuffer);
+    const fillRgb = fillColor.rgb;
     const strokeRgb = contrastRatio(fillRgb, BLACK) >= contrastRatio(fillRgb, WHITE) ? BLACK : WHITE;
-    return { fill: toHex(fillRgb), stroke: toHex(strokeRgb) };
+    return { fill: fillColor.hex, stroke: toHex(strokeRgb) };
   } catch {
     return { fill: DEFAULT_FILL, stroke: DEFAULT_STROKE };
   }
