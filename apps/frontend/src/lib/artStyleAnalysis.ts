@@ -19,7 +19,7 @@ export type ArtShape = 'circular' | 'rectangular';
 
 export const ART_SHAPES: ArtShape[] = ['circular', 'rectangular'];
 
-const DEFAULT_CATEGORY: FontCategory = 'bold-display';
+export const DEFAULT_CATEGORY: FontCategory = 'bold-display';
 const DEFAULT_SHAPE: ArtShape = 'rectangular';
 
 export interface StyleAnalysisContext {
