@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
-import { deriveTextColors, CURATED_PALETTE, rgbToHueSaturation, circularHueDistance } from './colorExtraction';
+import { deriveTextColors, CURATED_PALETTE, rgbToHueSaturation, circularHueDistance, extractOpaquePixels, topClusters } from './colorExtraction';
 
 async function solidCanvas(r: number, g: number, b: number): Promise<Buffer> {
   return sharp({
@@ -76,5 +76,49 @@ describe('circularHueDistance', () => {
 
   it('returns the max possible distance (180) for opposite hues', () => {
     expect(circularHueDistance(0, 180)).toBe(180);
+  });
+});
+
+async function solidCanvasWithAlpha(r: number, g: number, b: number, alpha: number): Promise<Buffer> {
+  return sharp({
+    create: { width: 200, height: 200, channels: 4, background: { r, g, b, alpha } },
+  }).png().toBuffer();
+}
+
+describe('extractOpaquePixels', () => {
+  it('returns only opaque pixels, ignoring a fully transparent canvas', async () => {
+    const canvas = await solidCanvasWithAlpha(159, 141, 116, 0);
+    const pixels = await extractOpaquePixels(canvas);
+    expect(pixels.length).toBe(0);
+  });
+
+  it('returns pixels matching a fully opaque solid canvas', async () => {
+    const canvas = await solidCanvasWithAlpha(159, 141, 116, 1);
+    const pixels = await extractOpaquePixels(canvas);
+    expect(pixels.length).toBeGreaterThan(0);
+    expect(pixels[0]).toEqual([159, 141, 116]);
+  });
+});
+
+describe('topClusters', () => {
+  it('throws when given an empty pixel array', () => {
+    expect(() => topClusters([])).toThrow();
+  });
+
+  it('returns the single color for a uniform pixel set', () => {
+    const pixels: [number, number, number][] = Array.from({ length: 500 }, () => [159, 141, 116]);
+    const clusters = topClusters(pixels);
+    expect(clusters.length).toBeGreaterThanOrEqual(1);
+    expect(clusters[0][0]).toBeGreaterThan(140);
+  });
+
+  it('returns the most populous cluster first for a two-toned pixel set', () => {
+    const pixels: [number, number, number][] = [
+      ...Array.from({ length: 700 }, () => [20, 20, 20] as [number, number, number]),
+      ...Array.from({ length: 100 }, () => [230, 230, 230] as [number, number, number]),
+    ];
+    const clusters = topClusters(pixels);
+    // The dark cluster has 7x the population -- it must be first.
+    expect(clusters[0][0]).toBeLessThan(60);
   });
 });

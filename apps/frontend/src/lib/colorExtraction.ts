@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import quantize from 'quantize';
 import { getArtBoundingBox } from './textOverlay';
 
 export interface ColorPair {
@@ -112,4 +113,47 @@ export async function deriveTextColors(artBuffer: Buffer): Promise<ColorPair> {
   } catch {
     return { fill: DEFAULT_FILL, stroke: DEFAULT_STROKE };
   }
+}
+
+export type RgbPixel = quantize.RgbPixel;
+
+const OPAQUE_ALPHA_THRESHOLD = 200;
+const CLUSTER_COUNT = 5;
+const TOP_CLUSTERS_TO_SEARCH = 3;
+
+export async function extractOpaquePixels(artBuffer: Buffer): Promise<RgbPixel[]> {
+  const box = await getArtBoundingBox(artBuffer);
+  const { data, info } = await sharp(artBuffer)
+    .extract({ left: box.left, top: box.top, width: box.width, height: box.height })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const pixels: RgbPixel[] = [];
+  for (let i = 0; i < data.length; i += info.channels) {
+    if (data[i + 3] > OPAQUE_ALPHA_THRESHOLD) {
+      pixels.push([data[i], data[i + 1], data[i + 2]]);
+    }
+  }
+  return pixels;
+}
+
+export function topClusters(pixels: RgbPixel[]): RgbPixel[] {
+  const cmap = quantize(pixels, CLUSTER_COUNT);
+  if (!cmap) {
+    throw new Error('quantize returned no color map (no opaque pixels found)');
+  }
+
+  const counts = new Map<string, number>();
+  for (const pixel of pixels) {
+    const mapped = cmap.map(pixel);
+    const key = mapped.join(',');
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return cmap
+    .palette()
+    .slice()
+    .sort((a, b) => (counts.get(b.join(',')) ?? 0) - (counts.get(a.join(',')) ?? 0))
+    .slice(0, TOP_CLUSTERS_TO_SEARCH);
 }
