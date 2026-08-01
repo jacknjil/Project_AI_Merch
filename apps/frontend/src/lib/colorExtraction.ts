@@ -157,3 +157,48 @@ export function topClusters(pixels: RgbPixel[]): RgbPixel[] {
     .sort((a, b) => (counts.get(b.join(',')) ?? 0) - (counts.get(a.join(',')) ?? 0))
     .slice(0, TOP_CLUSTERS_TO_SEARCH);
 }
+
+const CONTRAST_FLOOR = 4.5;
+const GRAYSCALE_SATURATION_THRESHOLD = 0.08;
+
+interface Candidate {
+  color: CuratedColor;
+  hueDistance: number;
+  contrast: number;
+}
+
+function bestCandidateForCluster(cluster: RgbPixel): Candidate {
+  const clusterRgb: Rgb = { r: cluster[0], g: cluster[1], b: cluster[2] };
+  const { hue: clusterHue, saturation: clusterSaturation } = rgbToHueSaturation(clusterRgb);
+
+  const scored: Candidate[] = CURATED_PALETTE.map((color) => ({
+    color,
+    hueDistance: circularHueDistance(clusterHue, rgbToHueSaturation(color.rgb).hue),
+    contrast: contrastRatio(clusterRgb, color.rgb),
+  }));
+
+  const passing = scored.filter((c) => c.contrast >= CONTRAST_FLOOR);
+  const pool = passing.length > 0 ? passing : scored;
+
+  if (clusterSaturation < GRAYSCALE_SATURATION_THRESHOLD) {
+    return pool.slice().sort((a, b) => b.contrast - a.contrast)[0];
+  }
+
+  return pool.slice().sort((a, b) => a.hueDistance - b.hueDistance)[0];
+}
+
+export async function pickFillColor(artBuffer: Buffer): Promise<CuratedColor> {
+  const pixels = await extractOpaquePixels(artBuffer);
+  const clusters = topClusters(pixels);
+
+  const candidates = clusters.map((cluster) => bestCandidateForCluster(cluster));
+
+  const best = candidates.slice().sort((a, b) => {
+    const aPasses = a.contrast >= CONTRAST_FLOOR ? 0 : 1;
+    const bPasses = b.contrast >= CONTRAST_FLOOR ? 0 : 1;
+    if (aPasses !== bPasses) return aPasses - bPasses;
+    return a.hueDistance - b.hueDistance;
+  })[0];
+
+  return best.color;
+}
