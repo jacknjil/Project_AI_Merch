@@ -123,35 +123,86 @@ describe('topClusters', () => {
   });
 });
 
-describe('pickFillColor (regression: warm art must not resolve to a cool fill)', () => {
-  it('picks a warm-hued candidate for a warm tan dominant color, never a blue one', async () => {
-    // Measured true dominant color of the real "Toadally enchanted" toad
-    // asset (row 322/323/324) that originally exposed this bug: #9F8D74.
-    const canvas = await sharp({
-      create: { width: 200, height: 200, channels: 4, background: { r: 159, g: 141, b: 116, alpha: 1 } },
+async function multiRegionCanvas(
+  width: number,
+  height: number,
+  regions: Array<{ r: number; g: number; b: number; heightFraction: number }>,
+): Promise<Buffer> {
+  const layers: Array<{ input: Buffer; left: number; top: number }> = [];
+  let yOffset = 0;
+  for (const region of regions) {
+    const regionHeight = Math.round(height * region.heightFraction);
+    const layerBuffer = await sharp({
+      create: { width, height: regionHeight, channels: 4, background: { r: region.r, g: region.g, b: region.b, alpha: 1 } },
     }).png().toBuffer();
+    layers.push({ input: layerBuffer, left: 0, top: yOffset });
+    yOffset += regionHeight;
+  }
+  return sharp({
+    create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+  }).composite(layers).png().toBuffer();
+}
+
+describe('pickFillColor (regression: warm art must not resolve to a cool fill)', () => {
+  it('picks a warm-hued, sufficiently-contrasting candidate for warm multi-toned art, never a blue one', async () => {
+    // Approximates the real "Toadally enchanted" toad asset (row 322/323/324)
+    // that originally exposed this bug. A single-flat-color approximation of
+    // its averaged dominant color (#9F8D74) is NOT enough to reproduce the
+    // real pipeline behavior: none of the 10 curated candidates clear the
+    // 4.5:1 floor against that flat average (best is Charcoal at 4.36), so a
+    // solid-canvas fixture collapses to one quantize cluster and forces the
+    // unfiltered-fallback path, which is a different (and, for this specific
+    // input, worse) code path than production actually exercises.
+    //
+    // The real image is genuinely multi-toned -- topClusters found roughly:
+    // a light warm-tan region (~[178,157,127]), a near-black shadow region
+    // (~[50,44,44]), and a near-white highlight region (~[232,228,212]).
+    // That light region is what lets a real candidate (Charcoal, contrast
+    // 5.35 against it) clear the floor. This fixture reproduces that
+    // three-region structure (roughly matching the real proportions) so the
+    // test actually exercises the top-3-cluster search mechanism, not just a
+    // single averaged color.
+    const canvas = await multiRegionCanvas(200, 200, [
+      { r: 178, g: 157, b: 127, heightFraction: 0.6 },
+      { r: 50, g: 44, b: 44, heightFraction: 0.2 },
+      { r: 232, g: 228, b: 212, heightFraction: 0.2 },
+    ]);
 
     const fill = await pickFillColor(canvas);
-    const { hue, saturation } = rgbToHueSaturation(fill.rgb);
+    const { hue } = rgbToHueSaturation(fill.rgb);
+
+    // Hard legibility floor: the winner must actually be legible against at
+    // least the cluster that made it win (this is the exact gap that let the
+    // solid-canvas fixture's false pass go unnoticed -- it never checked this).
+    const bestClusterContrast = Math.max(
+      contrastRatio(fill.rgb, { r: 178, g: 157, b: 127 }),
+      contrastRatio(fill.rgb, { r: 50, g: 44, b: 44 }),
+      contrastRatio(fill.rgb, { r: 232, g: 228, b: 212 }),
+    );
+    expect(bestClusterContrast).toBeGreaterThanOrEqual(4.5);
 
     // The bug produced #60728B (hue ~200, squarely in the blue range).
-    // A correct pick for warm tan input must not land in that range.
-    if (saturation > 0.05) {
-      const inBlueRange = hue > 180 && hue < 260;
-      expect(inBlueRange).toBe(false);
-    }
+    // A correct pick for warm multi-toned input must not land in that range.
+    const inBlueRange = hue > 180 && hue < 260;
+    expect(inBlueRange).toBe(false);
   });
 
   it('picks a high-contrast light candidate for a pure black canvas', async () => {
     // Hand-computed prediction was "Cream" (contrast 18.49, the true best).
-    // Actual pick is "Terracotta" (contrast 4.71): quantize's median-cut
-    // clustering perturbs a perfectly solid black canvas into a
-    // near-black-but-not-quite-gray cluster like [8,4,4] -- its HSL
-    // saturation (~0.33) clears the GRAYSCALE_SATURATION_THRESHOLD (0.08),
-    // so it's scored as "colored" (hue ~= red) rather than routed into the
-    // pure-contrast grayscale branch. Terracotta still clears the hard 4.5
-    // contrast floor and is directionally correct (much lighter than
-    // black), so this is accepted as correct-per-spec, not a bug.
+    // Actual pick is "Terracotta" (contrast 4.71). Mechanism: quantize's
+    // median-cut clustering perturbs a perfectly solid black canvas into a
+    // near-black-but-not-quite-gray cluster like [8,4,4]. That tiny
+    // per-channel noise gets amplified by rgbToHueSaturation's saturation
+    // formula (delta / (1 - |2L-1|)), which is numerically unstable as
+    // lightness L approaches 0 or 1 -- the denominator shrinks toward zero,
+    // so a near-black cluster's saturation reads as ~0.33 (well above the
+    // GRAYSCALE_SATURATION_THRESHOLD of 0.08) even though the underlying
+    // color is visually indistinguishable from true gray. That pushes the
+    // cluster into the "colored" hue-fit branch (hue ~= red, since r>g==b)
+    // instead of the intended pure-contrast grayscale branch. Terracotta
+    // still clears the hard 4.5 contrast floor and is directionally correct
+    // (much lighter than black), so this is accepted as correct-per-spec,
+    // not a bug.
     const canvas = await sharp({
       create: { width: 200, height: 200, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
     }).png().toBuffer();
@@ -163,11 +214,13 @@ describe('pickFillColor (regression: warm art must not resolve to a cool fill)',
 
   it('picks a high-contrast dark candidate for a pure white canvas', async () => {
     // Hand-computed prediction was "Charcoal" (contrast 13.99, the true
-    // best). Actual pick is "Burgundy" (contrast 10.11) for the same
-    // quantize-clustering-noise reason documented above (white perturbs to
-    // e.g. [256,252,252], which is not perfectly neutral). Burgundy still
-    // clears the hard 4.5 floor comfortably and is directionally correct
-    // (much darker than white), so this is accepted as correct-per-spec.
+    // best). Actual pick is "Burgundy" (contrast 10.11), for the same
+    // quantize-noise-amplified-by-unstable-saturation-formula reason
+    // documented above (white perturbs to e.g. [256,252,252], which is not
+    // perfectly neutral, and near lightness 1 the saturation formula is
+    // similarly unstable). Burgundy still clears the hard 4.5 floor
+    // comfortably and is directionally correct (much darker than white), so
+    // this is accepted as correct-per-spec.
     const canvas = await sharp({
       create: { width: 200, height: 200, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
     }).png().toBuffer();
