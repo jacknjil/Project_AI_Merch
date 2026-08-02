@@ -376,8 +376,8 @@ describe('applyTextOverlay', () => {
         'ADVENTURE AWAITS',
       );
 
-      expect(withSecondary.equals(canvas)).toBe(false);
-      expect(withSecondary.equals(primaryOnly)).toBe(false);
+      expect(withSecondary.buffer.equals(canvas)).toBe(false);
+      expect(withSecondary.buffer.equals(primaryOnly.buffer)).toBe(false);
 
       const centeredArt = await shrinkArtForTextZone(canvas, 0.75, 'center');
       const artBox = await getArtBoundingBox(centeredArt);
@@ -428,10 +428,11 @@ describe('applyTextOverlayWithFallback', () => {
     }).png().toBuffer();
 
     const output = await applyTextOverlayWithFallback(uniform, 'ESPRESSO YOURSELF', fontBuffer);
-    const meta = await sharp(output).metadata();
+    const meta = await sharp(output.buffer).metadata();
     expect(meta.width).toBe(400);
     expect(meta.height).toBe(400);
-    expect(output.equals(uniform)).toBe(false);
+    expect(output.buffer.equals(uniform)).toBe(false);
+    expect(output.primaryApplied).toBe(true);
   });
 
   it('uses the natural bounding box directly when there is already room', async () => {
@@ -448,10 +449,10 @@ describe('applyTextOverlayWithFallback', () => {
 
     const withFallback = await applyTextOverlayWithFallback(canvas, 'ESPRESSO YOURSELF', fontBuffer);
     const direct = await applyTextOverlay(canvas, 'ESPRESSO YOURSELF', fontBuffer);
-    expect(withFallback.equals(direct.buffer)).toBe(true);
+    expect(withFallback.buffer.equals(direct.buffer)).toBe(true);
   });
 
-  it('falls back to shrink + straight-line rendering (never a second arc attempt) when circular text overflows', async () => {
+  it('falls back to shrink + straight-line rendering for the primary phrase when circular text overflows even after shrinking', async () => {
     const opaqueArt = await sharp({
       create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
     }).png().toBuffer();
@@ -469,8 +470,10 @@ describe('applyTextOverlayWithFallback', () => {
     const shrunk = await shrinkArtForTextZone(canvas, 0.75);
     const expectedFallbackOutput = await applyTextOverlay(shrunk, longPhrase, fontBuffer, {}, 'rectangular');
 
-    expect(withFallback.equals(canvas)).toBe(false);
-    expect(withFallback.equals(expectedFallbackOutput.buffer)).toBe(true);
+    expect(withFallback.buffer.equals(canvas)).toBe(false);
+    expect(withFallback.buffer.equals(expectedFallbackOutput.buffer)).toBe(true);
+    expect(withFallback.primaryApplied).toBe(true);
+    expect(withFallback.primaryUsedFallback).toBe(true);
   });
 
   it('shrinks then successfully renders arced text on the shrunk art when the natural zone does not exist', async () => {
@@ -483,7 +486,76 @@ describe('applyTextOverlayWithFallback', () => {
     const shrunk = await shrinkArtForTextZone(uniform, 0.75);
     const straightOnShrunk = await applyTextOverlay(shrunk, 'HI', fontBuffer, {}, 'rectangular');
 
-    expect(withFallback.equals(uniform)).toBe(false);
-    expect(withFallback.equals(straightOnShrunk.buffer)).toBe(false);
+    expect(withFallback.buffer.equals(uniform)).toBe(false);
+    expect(withFallback.buffer.equals(straightOnShrunk.buffer)).toBe(false);
+    expect(withFallback.primaryUsedFallback).toBe(false);
+  });
+
+  describe('row 326 real-world geometry (regression: the actual reported bug)', () => {
+    async function row326Geometry() {
+      const opaqueArt = await sharp({
+        create: { width: 726, height: 733, channels: 4, background: { r: 120, g: 90, b: 60, alpha: 1 } },
+      }).png().toBuffer();
+
+      return sharp({
+        create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: opaqueArt, left: 153, top: 147 }])
+        .png()
+        .toBuffer();
+    }
+
+    it('retries with shrink and renders BOTH phrases via arc when the primary fails but the secondary already succeeded (the exact row 326 bug)', async () => {
+      const canvas = await row326Geometry();
+
+      const direct = await applyTextOverlay(
+        canvas,
+        "Nature's Little Necromancer",
+        fontBuffer,
+        {},
+        'circular',
+        'Reader of the Woods',
+      );
+      expect(direct.primaryApplied).toBe(false);
+      expect(direct.secondaryApplied).toBe(true);
+
+      const output = await applyTextOverlayWithFallback(
+        canvas,
+        "Nature's Little Necromancer",
+        fontBuffer,
+        {},
+        0.75,
+        'circular',
+        'Reader of the Woods',
+      );
+
+      expect(output.primaryApplied).toBe(true);
+      expect(output.secondaryApplied).toBe(true);
+      expect(output.primaryUsedFallback).toBe(false);
+      expect(output.secondaryUsedFallback).toBe(false);
+      expect(output.buffer.equals(canvas)).toBe(false);
+    });
+
+    it('falls back to straight-line text for both phrases when even the shrunk art cannot fit either arc', async () => {
+      const canvas = await row326Geometry();
+      const extremePrimary = 'This Is An Extremely Long Title That Will Never Fit On A Small Circular Badge No Matter What';
+      const extremeSecondary = 'And Neither Will This Equally Long Secondary Tagline Underneath It Either';
+
+      const output = await applyTextOverlayWithFallback(
+        canvas,
+        extremePrimary,
+        fontBuffer,
+        {},
+        0.75,
+        'circular',
+        extremeSecondary,
+      );
+
+      expect(output.primaryApplied).toBe(true);
+      expect(output.secondaryApplied).toBe(true);
+      expect(output.primaryUsedFallback).toBe(true);
+      expect(output.secondaryUsedFallback).toBe(true);
+      expect(output.buffer.equals(canvas)).toBe(false);
+    });
   });
 });

@@ -280,6 +280,39 @@ export async function applyTextOverlay(
   return { buffer: withBoth, primaryApplied: true, secondaryApplied: true, primaryUsedFallback: false, secondaryUsedFallback: false };
 }
 
+function bothSucceeded(result: OverlayResult, secondaryPhrase?: string): boolean {
+  return result.primaryApplied && (secondaryPhrase ? result.secondaryApplied : true);
+}
+
+async function straightLineFallbackFor(
+  buffer: Buffer,
+  phrase: string,
+  fontBuffer: Buffer,
+  colors: OverlayColors,
+  zoneKind: 'top' | 'bottom',
+): Promise<Buffer> {
+  const meta = await sharp(buffer).metadata();
+  const canvasWidth = meta.width ?? 0;
+  const canvasHeight = meta.height ?? 0;
+  const artBox = await getArtBoundingBox(buffer);
+  const marginPx = Math.round(Math.min(canvasWidth, canvasHeight) * 0.04);
+  const zone = zoneKind === 'top'
+    ? computeTextZone(canvasWidth, canvasHeight, artBox, marginPx)
+    : computeBottomTextZone(canvasWidth, canvasHeight, artBox, marginPx);
+
+  if (zone.height <= 0 || zone.width <= 0) return buffer;
+
+  const font = loadFont(fontBuffer);
+  const rendered = renderTextToSvg(font, phrase, {
+    maxWidth: zone.width,
+    maxHeight: zone.height,
+    fill: colors.fill,
+    stroke: colors.stroke,
+  });
+  const textPng = await sharp(rendered.svg).png().toBuffer();
+  return compositeTextOverArt(buffer, textPng, zone);
+}
+
 // Combines applyTextOverlay with the shrinkArtForTextZone fallback. For
 // circular shapes, Recraft's near-full-bleed generation habit means a
 // natural zone rarely exists, so the shrink step happens unconditionally
@@ -295,20 +328,42 @@ export async function applyTextOverlayWithFallback(
   shrinkScale = 0.75,
   shape: ArtShape = 'rectangular',
   secondaryPhrase?: string,
-): Promise<Buffer> {
-  const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape, secondaryPhrase);
-  if (!output.buffer.equals(artBuffer)) return output.buffer;
+): Promise<OverlayResult> {
+  const attempt1 = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape, secondaryPhrase);
+  if (bothSucceeded(attempt1, secondaryPhrase)) return attempt1;
 
-  // Only give up bottom-anchoring's larger top margin when there's actually
-  // a secondary phrase that needs room of its own -- single-phrase designs
-  // keep the original (more generous, well-tested) bottom-anchored shrink.
   const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale, secondaryPhrase ? 'center' : 'bottom');
 
-  if (shape === 'circular') {
-    const shrunkArced = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular', secondaryPhrase);
-    if (!shrunkArced.buffer.equals(shrunk)) return shrunkArced.buffer;
+  if (shape !== 'circular') {
+    return applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular', secondaryPhrase);
   }
 
-  const rectangular = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular', secondaryPhrase);
-  return rectangular.buffer;
+  const attempt2 = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular', secondaryPhrase);
+  if (bothSucceeded(attempt2, secondaryPhrase)) return attempt2;
+
+  // Circular shape, still missing at least one phrase after the shrink
+  // retry -- straight-line last resort, applied only to whichever phrase(s)
+  // are still missing, so a phrase that already succeeded (arced or not)
+  // is never re-rendered or degraded.
+  let buffer = attempt2.buffer;
+  let primaryApplied = attempt2.primaryApplied;
+  let secondaryApplied = attempt2.secondaryApplied;
+  let primaryUsedFallback = false;
+  let secondaryUsedFallback = false;
+
+  if (!primaryApplied) {
+    const before = buffer;
+    buffer = await straightLineFallbackFor(buffer, phrase, fontBuffer, colors, 'top');
+    primaryApplied = !buffer.equals(before);
+    primaryUsedFallback = primaryApplied;
+  }
+
+  if (secondaryPhrase && !secondaryApplied) {
+    const before = buffer;
+    buffer = await straightLineFallbackFor(buffer, secondaryPhrase, fontBuffer, colors, 'bottom');
+    secondaryApplied = !buffer.equals(before);
+    secondaryUsedFallback = secondaryApplied;
+  }
+
+  return { buffer, primaryApplied, secondaryApplied, primaryUsedFallback, secondaryUsedFallback };
 }
