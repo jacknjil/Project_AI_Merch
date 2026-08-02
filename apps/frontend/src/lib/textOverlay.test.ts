@@ -491,6 +491,36 @@ describe('applyTextOverlayWithFallback', () => {
     expect(withFallback.primaryUsedFallback).toBe(false);
   });
 
+  describe('rectangular shape with tight bottom margin (regression: secondary phrase silently dropped)', () => {
+    it('retries with shrink and renders BOTH phrases when rectangular secondary phrase has no room in natural zone', async () => {
+      // Fixture: art positioned near bottom leaves no room for a secondary phrase below
+      const opaqueArt = await sharp({
+        create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
+      }).png().toBuffer();
+
+      const canvas = await sharp({
+        create: { width: 600, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: opaqueArt, left: 150, top: 470 }])
+        .png()
+        .toBuffer();
+
+      // Direct applyTextOverlay call with this fixture would drop the secondary
+      const direct = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', 'BYE');
+      expect(direct.primaryApplied).toBe(true);
+      expect(direct.secondaryApplied).toBe(false);
+
+      // With the fallback wrapper, it should retry with shrunk art and get both phrases
+      const output = await applyTextOverlayWithFallback(canvas, 'HI', fontBuffer, {}, 0.75, 'rectangular', 'BYE');
+
+      expect(output.primaryApplied).toBe(true);
+      expect(output.secondaryApplied).toBe(true);
+      expect(output.buffer.equals(canvas)).toBe(false);
+      // Verify it's not the same as the primary-only result (i.e., a shrink retry actually happened)
+      expect(output.buffer.equals(direct.buffer)).toBe(false);
+    });
+  });
+
   describe('row 326 real-world geometry (regression: the actual reported bug)', () => {
     async function row326Geometry() {
       const opaqueArt = await sharp({

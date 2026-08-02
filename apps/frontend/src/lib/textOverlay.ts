@@ -313,13 +313,15 @@ async function straightLineFallbackFor(
   return compositeTextOverArt(buffer, textPng, zone);
 }
 
-// Combines applyTextOverlay with the shrinkArtForTextZone fallback. For
-// circular shapes, Recraft's near-full-bleed generation habit means a
-// natural zone rarely exists, so the shrink step happens unconditionally
-// and the arc is retried on the shrunk art -- only falling through to
-// straight-line text if the arc still doesn't fit even then. Rectangular
-// shapes are completely unaffected: unchanged natural-zone-then-shrink
-// behavior, identical to before this feature existed.
+// Combines applyTextOverlay with the shrinkArtForTextZone fallback. Both
+// circular and rectangular shapes now benefit from the retry-on-missing-phrase
+// gate: if any requested phrase fails to apply, the function retries with
+// shrunk art rather than returning early. For circular shapes, a third fallback
+// layer applies straight-line text to any phrase that still can't arc-fit even
+// after shrinking. For rectangular shapes, the straight-line fallback loop is
+// skipped because renderTextToSvg never fails (no minimum-size throw), so the
+// second attempt (shrunk art) is guaranteed to have both phrases applied by
+// construction.
 export async function applyTextOverlayWithFallback(
   artBuffer: Buffer,
   phrase: string,
