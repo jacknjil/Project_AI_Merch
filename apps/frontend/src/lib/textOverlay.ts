@@ -232,6 +232,8 @@ export async function applyTextOverlay(
       return { buffer: withPrimary, primaryApplied, secondaryApplied: false, primaryUsedFallback: false, secondaryUsedFallback: false };
     }
 
+    // Must use the zone BELOW the art, not `renderOptions` (which holds
+    // the zone above it) -- see computeBottomTextZone.
     try {
       const bottomZone = computeBottomTextZone(canvasWidth, canvasHeight, artBox, marginPx);
       const renderedSecondary = renderArcedTextToSvg(font, secondaryPhrase, {
@@ -319,9 +321,10 @@ async function straightLineFallbackFor(
 // shrunk art rather than returning early. For circular shapes, a third fallback
 // layer applies straight-line text to any phrase that still can't arc-fit even
 // after shrinking. For rectangular shapes, the straight-line fallback loop is
-// skipped because renderTextToSvg never fails (no minimum-size throw), so the
-// second attempt (shrunk art) is guaranteed to have both phrases applied by
-// construction.
+// skipped because renderTextToSvg never fails to fit *some* text -- the shrunk-art retry is
+// expected to have both requested phrases applied given a reasonable shrinkScale
+// (<=0.8); in the rare case a zone is still degenerate after shrinking, the returned
+// flags report that accurately rather than silently.
 export async function applyTextOverlayWithFallback(
   artBuffer: Buffer,
   phrase: string,
@@ -334,6 +337,10 @@ export async function applyTextOverlayWithFallback(
   const attempt1 = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape, secondaryPhrase);
   if (bothSucceeded(attempt1, secondaryPhrase)) return attempt1;
 
+  // 'center' anchor (used whenever a secondaryPhrase is given) splits the
+  // freed space between top and bottom instead of giving it all to one
+  // side -- fixes a real production bug (row 146) where bottom-anchoring
+  // left ~zero room below the art for a two-phrase badge.
   const shrunk = await shrinkArtForTextZone(artBuffer, shrinkScale, secondaryPhrase ? 'center' : 'bottom');
 
   if (shape !== 'circular') {

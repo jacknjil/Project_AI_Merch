@@ -389,6 +389,12 @@ describe('applyTextOverlay', () => {
   });
 
   describe('row 326 real-world geometry (regression: primary silently dropped while secondary succeeded)', () => {
+    // Canvas and artBox measured directly against the real production asset
+    // that surfaced this bug (Firestore doc assets/pXzADDbM9AAFabsVFdP6,
+    // "Opossum's Almanac", rowId 326) -- a synthetic opaque rectangle at the
+    // exact same bounds reproduces the identical zone/radius geometry, since
+    // the arc-fit math depends only on canvas/artBox dimensions and phrase
+    // content, never on the art's actual pixel colors.
     async function row326Geometry() {
       const opaqueArt = await sharp({
         create: { width: 726, height: 733, channels: 4, background: { r: 120, g: 90, b: 60, alpha: 1 } },
