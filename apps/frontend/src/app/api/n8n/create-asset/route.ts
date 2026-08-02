@@ -307,6 +307,8 @@ export async function POST(req: NextRequest) {
           overlayApplied = false;
           primaryOverlayApplied = false;
           secondaryOverlayApplied = phraseSecondary ? false : null;
+          primaryUsedFallback = false;
+          secondaryUsedFallback = phraseSecondary ? false : null;
           log('create_asset.text_overlay_failed', { requestId, rowId, message: String(overlayErr?.message) });
         }
       }
