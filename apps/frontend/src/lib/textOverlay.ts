@@ -166,6 +166,14 @@ export interface OverlayColors {
   stroke?: string;
 }
 
+export interface OverlayResult {
+  buffer: Buffer;
+  primaryApplied: boolean;
+  secondaryApplied: boolean;
+  primaryUsedFallback: boolean;
+  secondaryUsedFallback: boolean;
+}
+
 export async function applyTextOverlay(
   artBuffer: Buffer,
   phrase: string,
@@ -173,7 +181,7 @@ export async function applyTextOverlay(
   colors: OverlayColors = {},
   shape: ArtShape = 'rectangular',
   secondaryPhrase?: string,
-): Promise<Buffer> {
+): Promise<OverlayResult> {
   const meta = await sharp(artBuffer).metadata();
   const canvasWidth = meta.width ?? 0;
   const canvasHeight = meta.height ?? 0;
@@ -182,7 +190,15 @@ export async function applyTextOverlay(
   const marginPx = Math.round(Math.min(canvasWidth, canvasHeight) * 0.04);
   const zone = computeTextZone(canvasWidth, canvasHeight, artBox, marginPx);
 
-  if (zone.height <= 0 || zone.width <= 0) return artBuffer;
+  const noResult = (): OverlayResult => ({
+    buffer: artBuffer,
+    primaryApplied: false,
+    secondaryApplied: false,
+    primaryUsedFallback: false,
+    secondaryUsedFallback: false,
+  });
+
+  if (zone.height <= 0 || zone.width <= 0) return noResult();
 
   const font = loadFont(fontBuffer);
   const renderOptions = {
@@ -193,16 +209,11 @@ export async function applyTextOverlay(
   };
 
   if (shape === 'circular') {
-    // Radius comes from the art's own trimmed bounding box, not the
-    // available zone -- for a circular badge that box tightly wraps the
-    // circle, so this is the badge's real rim, not an arbitrary curve.
-    // ARC_RADIUS_SLACK is a deliberate stylistic loosening applied on top
-    // of that true rim measurement (not baked into it), so the arc rides
-    // slightly outside the badge instead of sitting flush against it.
     const badgeRadius = ((artBox.width + artBox.height) / 4) * ARC_RADIUS_SLACK;
     const badgeCenterX = artBox.left + artBox.width / 2;
 
-    let withPrimary: Buffer;
+    let withPrimary: Buffer = artBuffer;
+    let primaryApplied = false;
     try {
       const rendered = renderArcedTextToSvg(font, phrase, { ...renderOptions, radius: badgeRadius });
       const textPng = await sharp(rendered.svg).png().toBuffer();
@@ -212,19 +223,16 @@ export async function applyTextOverlay(
         { x: badgeCenterX, y: artBox.top },
         { x: rendered.anchorX, y: rendered.anchorY },
       );
+      primaryApplied = true;
     } catch (err) {
       if (!(err instanceof ArcTextTooSmallError)) throw err;
-      withPrimary = artBuffer;
     }
 
-    if (!secondaryPhrase) return withPrimary;
+    if (!secondaryPhrase) {
+      return { buffer: withPrimary, primaryApplied, secondaryApplied: false, primaryUsedFallback: false, secondaryUsedFallback: false };
+    }
 
-    // Independent try/catch: the tagline not fitting shouldn't cancel a
-    // title that did fit, and vice versa -- each arc succeeds or falls back
-    // on its own.
     try {
-      // Must use the zone BELOW the art, not `renderOptions` (which holds
-      // the zone above it) -- see computeBottomTextZone.
       const bottomZone = computeBottomTextZone(canvasWidth, canvasHeight, artBox, marginPx);
       const renderedSecondary = renderArcedTextToSvg(font, secondaryPhrase, {
         maxWidth: bottomZone.width,
@@ -235,15 +243,16 @@ export async function applyTextOverlay(
         direction: 'bottom',
       });
       const secondaryPng = await sharp(renderedSecondary.svg).png().toBuffer();
-      return await compositeArcedTextOverArt(
+      const withBoth = await compositeArcedTextOverArt(
         withPrimary,
         secondaryPng,
         { x: badgeCenterX, y: artBox.top + artBox.height },
         { x: renderedSecondary.anchorX, y: renderedSecondary.anchorY },
       );
+      return { buffer: withBoth, primaryApplied, secondaryApplied: true, primaryUsedFallback: false, secondaryUsedFallback: false };
     } catch (err) {
       if (!(err instanceof ArcTextTooSmallError)) throw err;
-      return withPrimary;
+      return { buffer: withPrimary, primaryApplied, secondaryApplied: false, primaryUsedFallback: false, secondaryUsedFallback: false };
     }
   }
 
@@ -251,13 +260,14 @@ export async function applyTextOverlay(
   const textPng = await sharp(rendered.svg).png().toBuffer();
   const withPrimary = await compositeTextOverArt(artBuffer, textPng, zone);
 
-  if (!secondaryPhrase) return withPrimary;
+  if (!secondaryPhrase) {
+    return { buffer: withPrimary, primaryApplied: true, secondaryApplied: false, primaryUsedFallback: false, secondaryUsedFallback: false };
+  }
 
-  // Straight text (not arced) below the art, mirroring the circular branch's
-  // top/bottom split -- a shield/banner has no rim to curve text around, but
-  // the same "reserve the zone below the art" logic still applies.
   const bottomZone = computeBottomTextZone(canvasWidth, canvasHeight, artBox, marginPx);
-  if (bottomZone.height <= 0 || bottomZone.width <= 0) return withPrimary;
+  if (bottomZone.height <= 0 || bottomZone.width <= 0) {
+    return { buffer: withPrimary, primaryApplied: true, secondaryApplied: false, primaryUsedFallback: false, secondaryUsedFallback: false };
+  }
 
   const renderedSecondary = renderTextToSvg(font, secondaryPhrase, {
     maxWidth: bottomZone.width,
@@ -266,7 +276,8 @@ export async function applyTextOverlay(
     stroke: colors.stroke,
   });
   const secondaryPng = await sharp(renderedSecondary.svg).png().toBuffer();
-  return compositeTextOverArt(withPrimary, secondaryPng, bottomZone);
+  const withBoth = await compositeTextOverArt(withPrimary, secondaryPng, bottomZone);
+  return { buffer: withBoth, primaryApplied: true, secondaryApplied: true, primaryUsedFallback: false, secondaryUsedFallback: false };
 }
 
 // Combines applyTextOverlay with the shrinkArtForTextZone fallback. For
@@ -286,7 +297,7 @@ export async function applyTextOverlayWithFallback(
   secondaryPhrase?: string,
 ): Promise<Buffer> {
   const output = await applyTextOverlay(artBuffer, phrase, fontBuffer, colors, shape, secondaryPhrase);
-  if (!output.equals(artBuffer)) return output;
+  if (!output.buffer.equals(artBuffer)) return output.buffer;
 
   // Only give up bottom-anchoring's larger top margin when there's actually
   // a secondary phrase that needs room of its own -- single-phrase designs
@@ -295,8 +306,9 @@ export async function applyTextOverlayWithFallback(
 
   if (shape === 'circular') {
     const shrunkArced = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'circular', secondaryPhrase);
-    if (!shrunkArced.equals(shrunk)) return shrunkArced;
+    if (!shrunkArced.buffer.equals(shrunk)) return shrunkArced.buffer;
   }
 
-  return applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular', secondaryPhrase);
+  const rectangular = await applyTextOverlay(shrunk, phrase, fontBuffer, colors, 'rectangular', secondaryPhrase);
+  return rectangular.buffer;
 }

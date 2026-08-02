@@ -195,20 +195,24 @@ describe('applyTextOverlay', () => {
       .toBuffer();
 
     const output = await applyTextOverlay(canvas, 'ESPRESSO YOURSELF', fontBuffer);
-    const meta = await sharp(output).metadata();
+    const meta = await sharp(output.buffer).metadata();
     expect(meta.width).toBe(600);
     expect(meta.height).toBe(800);
     expect(meta.hasAlpha).toBe(true);
-    expect(output.equals(canvas)).toBe(false);
+    expect(output.buffer.equals(canvas)).toBe(false);
+    expect(output.primaryApplied).toBe(true);
+    expect(output.secondaryApplied).toBe(false);
+    expect(output.primaryUsedFallback).toBe(false);
   });
 
-  it('returns the original buffer unchanged when there is no room for text', async () => {
+  it('returns the original buffer unchanged and primaryApplied false when there is no room for text', async () => {
     const canvas = await sharp({
       create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
     }).png().toBuffer();
 
     const output = await applyTextOverlay(canvas, 'ESPRESSO YOURSELF', fontBuffer);
-    expect(output.equals(canvas)).toBe(true);
+    expect(output.buffer.equals(canvas)).toBe(true);
+    expect(output.primaryApplied).toBe(false);
   });
 
   it('uses the provided fill and stroke colors instead of the defaults', async () => {
@@ -224,7 +228,7 @@ describe('applyTextOverlay', () => {
     const withCustomColors = await applyTextOverlay(canvas, 'HI', fontBuffer, { fill: '#123456', stroke: '#ABCDEF' });
     const withDefaults = await applyTextOverlay(canvas, 'HI', fontBuffer);
 
-    expect(withCustomColors.equals(withDefaults)).toBe(false);
+    expect(withCustomColors.buffer.equals(withDefaults.buffer)).toBe(false);
   });
 
   it('renders visually different output for a circular shape than the default straight rendering', async () => {
@@ -240,10 +244,10 @@ describe('applyTextOverlay', () => {
     const circular = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
     const straight = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
 
-    expect(circular.equals(straight)).toBe(false);
+    expect(circular.buffer.equals(straight.buffer)).toBe(false);
   });
 
-  it('returns the original buffer unchanged when circular text cannot fit above the minimum legible arc size', async () => {
+  it('returns the original buffer unchanged and primaryApplied false when circular text cannot fit above the minimum legible arc size', async () => {
     const opaqueArt = await sharp({
       create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
     }).png().toBuffer();
@@ -257,12 +261,11 @@ describe('applyTextOverlay', () => {
 
     const longPhrase = 'THIS PHRASE IS DEFINITELY WAY TOO LONG TO CURVE LEGIBLY IN THIS SPACE';
     const output = await applyTextOverlay(canvas, longPhrase, fontBuffer, {}, 'circular');
-    expect(output.equals(canvas)).toBe(true);
+    expect(output.buffer.equals(canvas)).toBe(true);
+    expect(output.primaryApplied).toBe(false);
   });
 
   describe('secondaryPhrase', () => {
-    // Room above AND below the art's bounding box, unlike the tighter
-    // fixtures above which only ever needed room above it.
     async function canvasWithRoomOnBothSides() {
       const opaqueArt = await sharp({
         create: { width: 700, height: 500, channels: 4, background: { r: 100, g: 50, b: 20, alpha: 1 } },
@@ -280,30 +283,34 @@ describe('applyTextOverlay', () => {
       const canvas = await canvasWithRoomOnBothSides();
       const withoutArg = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
       const withUndefined = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular', undefined);
-      expect(withoutArg.equals(withUndefined)).toBe(true);
+      expect(withoutArg.buffer.equals(withUndefined.buffer)).toBe(true);
+      expect(withoutArg.secondaryApplied).toBe(false);
     });
 
     it('composites a visibly different result when a fitting secondaryPhrase is provided, for a circular shape', async () => {
       const canvas = await canvasWithRoomOnBothSides();
       const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
       const withSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular', 'BYE');
-      expect(withSecondary.equals(primaryOnly)).toBe(false);
-      expect(withSecondary.equals(canvas)).toBe(false);
+      expect(withSecondary.buffer.equals(primaryOnly.buffer)).toBe(false);
+      expect(withSecondary.buffer.equals(canvas)).toBe(false);
+      expect(withSecondary.primaryApplied).toBe(true);
+      expect(withSecondary.secondaryApplied).toBe(true);
     });
 
     it('composites a visibly different result when a fitting secondaryPhrase is provided, for a rectangular shape', async () => {
       const canvas = await canvasWithRoomOnBothSides();
       const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
       const withSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', 'BYE');
-      expect(withSecondary.equals(primaryOnly)).toBe(false);
-      expect(withSecondary.equals(canvas)).toBe(false);
+      expect(withSecondary.buffer.equals(primaryOnly.buffer)).toBe(false);
+      expect(withSecondary.buffer.equals(canvas)).toBe(false);
+      expect(withSecondary.secondaryApplied).toBe(true);
     });
 
     it('omitting secondaryPhrase produces identical output to today for a rectangular shape (regression guard)', async () => {
       const canvas = await canvasWithRoomOnBothSides();
       const withoutArg = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
       const withUndefined = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', undefined);
-      expect(withoutArg.equals(withUndefined)).toBe(true);
+      expect(withoutArg.buffer.equals(withUndefined.buffer)).toBe(true);
     });
 
     it('renders primary only, without throwing, when there is no room below the art for a rectangular secondary phrase', async () => {
@@ -320,7 +327,8 @@ describe('applyTextOverlay', () => {
 
       const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular');
       const withSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'rectangular', 'BYE');
-      expect(withSecondary.equals(primaryOnly)).toBe(true);
+      expect(withSecondary.buffer.equals(primaryOnly.buffer)).toBe(true);
+      expect(withSecondary.secondaryApplied).toBe(false);
     });
 
     it('falls back to primary-only output when secondaryPhrase cannot fit, without throwing', async () => {
@@ -338,20 +346,10 @@ describe('applyTextOverlay', () => {
       const longSecondary = 'THIS SECONDARY PHRASE IS DEFINITELY WAY TOO LONG TO CURVE LEGIBLY IN THIS TINY SPACE';
       const primaryOnly = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular');
       const withUnfittingSecondary = await applyTextOverlay(canvas, 'HI', fontBuffer, {}, 'circular', longSecondary);
-      expect(withUnfittingSecondary.equals(primaryOnly)).toBe(true);
+      expect(withUnfittingSecondary.buffer.equals(primaryOnly.buffer)).toBe(true);
+      expect(withUnfittingSecondary.secondaryApplied).toBe(false);
     });
 
-    // Regression test for a real production bug (2026-07-19, row 146): on a
-    // near-full-bleed circular badge (the common case for Recraft), the old
-    // bottom-anchored shrink fallback left ~zero room below the art, so the
-    // secondary phrase either got composited overlapping the artwork (first
-    // bug, fixed by computeBottomTextZone) or correctly detected no room and
-    // silently dropped (second finding) -- neither produces a visible
-    // tagline. The real fix is shrinkArtForTextZone's 'center' anchor mode
-    // (used automatically whenever a secondaryPhrase is given), which splits
-    // the freed space between top and bottom instead of giving it all to the
-    // top. Confirmed via a live render that both phrases end up legible and
-    // correctly oriented, not just "some buffer difference exists".
     it('actually renders a visible secondary phrase on a near-full-bleed circular badge, by centering the shrunk art instead of anchoring it to the bottom', async () => {
       const canvasSize = 1024;
       const artDiameter = Math.round(canvasSize * 0.96);
@@ -378,20 +376,47 @@ describe('applyTextOverlay', () => {
         'ADVENTURE AWAITS',
       );
 
-      // Different from both the untouched canvas and the primary-only
-      // render -- something new was actually composited, not silently
-      // dropped.
       expect(withSecondary.equals(canvas)).toBe(false);
       expect(withSecondary.equals(primaryOnly)).toBe(false);
 
-      // The centered shrink itself leaves genuine, roughly symmetric room on
-      // both sides (not ~0 below, which was the root cause of the bug).
       const centeredArt = await shrinkArtForTextZone(canvas, 0.75, 'center');
       const artBox = await getArtBoundingBox(centeredArt);
       const roomAbove = artBox.top;
       const roomBelow = canvasSize - (artBox.top + artBox.height);
       expect(roomBelow).toBeGreaterThan(50);
       expect(roomBelow).toBeCloseTo(roomAbove, -1);
+    });
+  });
+
+  describe('row 326 real-world geometry (regression: primary silently dropped while secondary succeeded)', () => {
+    async function row326Geometry() {
+      const opaqueArt = await sharp({
+        create: { width: 726, height: 733, channels: 4, background: { r: 120, g: 90, b: 60, alpha: 1 } },
+      }).png().toBuffer();
+
+      return sharp({
+        create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: opaqueArt, left: 153, top: 147 }])
+        .png()
+        .toBuffer();
+    }
+
+    it('drops the primary phrase (too long to arc-fit) but keeps the secondary (fits), reporting accurate per-phrase flags', async () => {
+      const canvas = await row326Geometry();
+      const output = await applyTextOverlay(
+        canvas,
+        "Nature's Little Necromancer",
+        fontBuffer,
+        {},
+        'circular',
+        'Reader of the Woods',
+      );
+
+      expect(output.primaryApplied).toBe(false);
+      expect(output.secondaryApplied).toBe(true);
+      expect(output.primaryUsedFallback).toBe(false);
+      expect(output.secondaryUsedFallback).toBe(false);
     });
   });
 });
@@ -423,7 +448,7 @@ describe('applyTextOverlayWithFallback', () => {
 
     const withFallback = await applyTextOverlayWithFallback(canvas, 'ESPRESSO YOURSELF', fontBuffer);
     const direct = await applyTextOverlay(canvas, 'ESPRESSO YOURSELF', fontBuffer);
-    expect(withFallback.equals(direct)).toBe(true);
+    expect(withFallback.equals(direct.buffer)).toBe(true);
   });
 
   it('falls back to shrink + straight-line rendering (never a second arc attempt) when circular text overflows', async () => {
@@ -445,7 +470,7 @@ describe('applyTextOverlayWithFallback', () => {
     const expectedFallbackOutput = await applyTextOverlay(shrunk, longPhrase, fontBuffer, {}, 'rectangular');
 
     expect(withFallback.equals(canvas)).toBe(false);
-    expect(withFallback.equals(expectedFallbackOutput)).toBe(true);
+    expect(withFallback.equals(expectedFallbackOutput.buffer)).toBe(true);
   });
 
   it('shrinks then successfully renders arced text on the shrunk art when the natural zone does not exist', async () => {
@@ -459,6 +484,6 @@ describe('applyTextOverlayWithFallback', () => {
     const straightOnShrunk = await applyTextOverlay(shrunk, 'HI', fontBuffer, {}, 'rectangular');
 
     expect(withFallback.equals(uniform)).toBe(false);
-    expect(withFallback.equals(straightOnShrunk)).toBe(false);
+    expect(withFallback.equals(straightOnShrunk.buffer)).toBe(false);
   });
 });
