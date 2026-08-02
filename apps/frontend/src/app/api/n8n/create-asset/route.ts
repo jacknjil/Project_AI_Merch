@@ -271,12 +271,15 @@ export async function POST(req: NextRequest) {
       // that fails to fit produces no exception and previously no log line --
       // exactly what happened silently on asset rowId 284 before this check.
       let overlayApplied: boolean | null = null;
+      let primaryOverlayApplied: boolean | null = null;
+      let secondaryOverlayApplied: boolean | null = null;
+      let primaryUsedFallback: boolean | null = null;
+      let secondaryUsedFallback: boolean | null = null;
 
       if (phrase || phraseSecondary) {
-        const preOverlayPng = png;
         try {
           const overlayStyle = await resolveOverlayStyle(png, { colorPalette, styleTag: style });
-          png = await applyTextOverlayWithFallback(
+          const result = await applyTextOverlayWithFallback(
             png,
             phrase,
             overlayStyle.fontBuffer,
@@ -285,12 +288,25 @@ export async function POST(req: NextRequest) {
             overlayStyle.shape,
             phraseSecondary || undefined,
           );
-          overlayApplied = !png.equals(preOverlayPng);
+          png = result.buffer;
+          primaryOverlayApplied = result.primaryApplied;
+          secondaryOverlayApplied = phraseSecondary ? result.secondaryApplied : null;
+          primaryUsedFallback = result.primaryUsedFallback;
+          secondaryUsedFallback = phraseSecondary ? result.secondaryUsedFallback : null;
+          overlayApplied = result.primaryApplied || result.secondaryApplied;
           if (!overlayApplied) {
             log('create_asset.text_overlay_no_room', { requestId, rowId, phrase, phraseSecondary });
+          } else if (!result.primaryApplied || (phraseSecondary && !result.secondaryApplied)) {
+            log('create_asset.text_overlay_partial', {
+              requestId, rowId, phrase, phraseSecondary,
+              primaryApplied: result.primaryApplied,
+              secondaryApplied: result.secondaryApplied,
+            });
           }
         } catch (overlayErr: any) {
           overlayApplied = false;
+          primaryOverlayApplied = false;
+          secondaryOverlayApplied = phraseSecondary ? false : null;
           log('create_asset.text_overlay_failed', { requestId, rowId, message: String(overlayErr?.message) });
         }
       }
@@ -306,6 +322,10 @@ export async function POST(req: NextRequest) {
         phrase,
         phraseSecondary,
         overlayApplied,
+        primaryOverlayApplied,
+        secondaryOverlayApplied,
+        primaryUsedFallback,
+        secondaryUsedFallback,
         imageUrl,
         thumbUrl: imageUrl,
         storagePath,
