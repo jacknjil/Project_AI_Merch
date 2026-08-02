@@ -15,7 +15,7 @@
 ## Goals
 
 - Fill color should look like something a human designer picked for this specific piece of art — plausible, on-palette, intentional — not a mathematically-guaranteed-legible but visually arbitrary inverse.
-- Never sacrifice legibility for aesthetics: a contrast floor is a hard constraint, not a preference.
+- Never sacrifice legibility for aesthetics: a contrast floor is a hard constraint, not a preference — against the specific region of art the fill was matched to (see Selection's "Scope of the guarantee" for what this does and doesn't cover on multi-toned art).
 - Stay within the existing architecture: `deriveTextColors(artBuffer): Promise<ColorPair>` keeps its exact signature; no changes ripple to `textOverlayStyling.ts`, `route.ts`, `textOverlay.ts`, or `textRender.ts`.
 - Fix the premultiplied-alpha/transparent-pixel sampling bug as part of this work (it's in the same function being rewritten anyway).
 - Reuse a proven algorithm rather than hand-rolling one: researched `node-vibrant`, `colorthief`, `get-image-colors`, `extract-colors`, and `quantize` (npm registry, checked maintenance/deps/typings) before choosing.
@@ -62,6 +62,8 @@ Replaces `extractDominantColor`:
 ### Selection
 
 New logic replacing the invert step in `deriveTextColors`: for each of the 3 clusters, score every curated candidate — must clear a **4.5:1 WCAG contrast ratio** against that cluster's color (hard floor, non-negotiable), then rank passing candidates by hue closeness (circular HSL hue distance) to the cluster. Across all 3 clusters, take the single best (cluster, candidate) pairing overall.
+
+**Scope of the guarantee:** the 4.5:1 floor is checked against the cluster the winning candidate was scored and picked for — not against the other two of the top-3 clusters. On a multi-toned image, the winning fill is guaranteed legible against the region of art it was matched to, but is not guaranteed to clear 4.5:1 against every other prominent region of the same art. This is the actual, as-implemented behavior (confirmed during final review: a realistic multi-toned fixture produced a winner passing its own cluster at >4.5:1 while dropping to ~1.18:1 against a different cluster of the same image). Extending the floor to require passing against all top-3 clusters was considered and explicitly deferred — see Decisions Made.
 
 Grayscale degradation: if a cluster's saturation is near-zero (pure black/white/gray art), hue is undefined/meaningless, so selection skips straight to "highest-contrast passing candidate" for that cluster.
 
@@ -128,11 +130,12 @@ No changes needed to `textOverlay.test.ts`, `fontLibrary.test.ts`, or any route-
 - **`quantize` over `node-vibrant`/`colorthief`** — same underlying algorithm those libraries wrap, without their redundant image-decoding stack running alongside `sharp` in the same request path. Checked npm registry for maintenance/dependencies/typings before deciding (`quantize` + `@types/quantize` both real and typed).
 - **Top 3 clusters searched, not just the single largest** — a lone biggest cluster can be a background wash or highlight rather than the art's recognizable color; searching multiple candidates against the curated palette is closer to how a person would actually pick.
 - **4.5:1 WCAG contrast floor, applied as a hard constraint before hue-fit** — legibility is non-negotiable; hue-fit is the secondary/aesthetic goal once legibility is already guaranteed.
+- **Contrast floor checked per-winning-cluster only, not against all top-3 clusters** — found as a genuine spec-vs-implementation gap during final review (a multi-toned fixture can pass its own cluster's floor while dropping well below 4.5:1 against a different cluster of the same art). Decided to keep the per-cluster-only check as implemented rather than strengthen it: the fill only needs to read clearly against the region of art it was actually matched to, which is the common case this feature targets; requiring a single color to also clear the floor against every other prominent region of the art is a stricter, different guarantee that wasn't part of the original ask and would need its own design pass if pursued later.
 - **Fully contained to `colorExtraction.ts`** — no signature changes propagate to any caller, keeping this a low-blast-radius, independently testable change.
 
 ## Open Items for Planning
 
 1. Confirm exact opaque-pixel alpha threshold (proposed ~200) against a few more real generated assets beyond the one diagnosed here, in case anti-aliased edges need a different cutoff.
 2. Confirm `quantize`'s behavior when an image has fewer distinct colors than the requested cluster count (5) — expected to gracefully return fewer clusters, per standard MMCQ behavior, but not yet verified against this specific package version.
-3. Decide during implementation whether pixel sampling needs subsampling (e.g. every Nth pixel) for performance on very large bounding boxes, or whether feeding `quantize` the full opaque-pixel set is fast enough as-is (no perf issue is expected at these image sizes, but not yet measured).
+3. ~~Decide during implementation whether pixel sampling needs subsampling~~ **Resolved:** no subsampling. Final review measured ~480ms / ~240MB feeding the full opaque-pixel set through `quantize` against a real 1024×1024 production image. Accepted as-is — this path runs in the background n8n batch generation flow, not a user-facing request, so neither the latency nor the memory footprint is a problem at this image size. Revisit only if bounding boxes grow substantially larger than today's assets.
 4. Confirm the predicted solid-canvas test values in the Testing Strategy section against the real implementation once written — they're hand-computed via relative-luminance reasoning, not yet executed.
