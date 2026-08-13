@@ -23,6 +23,10 @@ describe('suggestCategoryForBlueprint', () => {
     expect(suggestCategoryForBlueprint(706)).toBe('shirt');
   });
 
+  it('returns hat for blueprint 1446 (Snapback Trucker Cap)', () => {
+    expect(suggestCategoryForBlueprint(1446)).toBe('hat');
+  });
+
   it('returns undefined for an unrecognized blueprint id', () => {
     expect(suggestCategoryForBlueprint(999999)).toBeUndefined();
   });

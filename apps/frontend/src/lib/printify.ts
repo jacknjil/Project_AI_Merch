@@ -18,25 +18,29 @@ function authHeaders(apiKey: string) {
 }
 
 // Printify blueprint IDs — verified against live catalog 2026-06-25
+// hat added 2026-08-13, verified against live catalog same date
 export const BLUEPRINT_IDS: Record<string, number> = {
-  shirt:  12,  // Gildan 64000 Softstyle
-  hoodie: 92,  // Gildan 18500
-  tote:   553, // Cotton Tote Bag (Fulfill Engine)
-  mug:    68,  // Mug 11oz (SPOKE Custom Products)
-  cup:    425, // Mug 15oz (SPOKE Custom Products)
+  shirt:  12,   // Gildan 64000 Softstyle
+  hoodie: 92,   // Gildan 18500
+  tote:   553,  // Cotton Tote Bag (Fulfill Engine)
+  mug:    68,   // Mug 11oz (SPOKE Custom Products)
+  cup:    425,  // Mug 15oz (SPOKE Custom Products)
+  hat:    1446, // Snapback Trucker Cap (Yupoong 6606)
 };
 
 // Print provider per blueprint — verified against live catalog 2026-06-25
+// hat added 2026-08-13, verified against live catalog same date
 export const PRINT_PROVIDER_IDS: Record<string, number> = {
   shirt:  99,  // Printify Choice
   hoodie: 99,  // Printify Choice
   tote:   217, // Fulfill Engine
   mug:    1,   // SPOKE Custom Products
   cup:    1,   // SPOKE Custom Products
+  hat:    99,  // Printify Choice
 };
 
 // Blueprint id -> category, for products not created through this app's
-// own publish pipeline. Extends the 5 app-default blueprints above with
+// own publish pipeline. Extends the app-default blueprints above with
 // blueprints discovered on Printify's own dashboard (audit: 2026-07-05).
 export const BLUEPRINT_CATEGORY_MAP: Record<number, string> = {
   12: 'shirt',    // app default
@@ -44,6 +48,7 @@ export const BLUEPRINT_CATEGORY_MAP: Record<number, string> = {
   553: 'tote',    // app default
   68: 'mug',      // app default
   425: 'cup',     // app default
+  1446: 'hat',    // app default
   400: 'sticker', // Kiss-Cut Stickers
   1313: 'tote',   // Cotton Canvas Tote Bag
   77: 'hoodie',   // Unisex Heavy Blend Hooded Sweatshirt
@@ -130,6 +135,7 @@ const VARIANT_IDS: Record<string, number[]> = {
   tote:   [70603],                       // blueprint 553 / provider 217: One size / Black
   mug:    [33719],                       // blueprint 68  / provider 1:   11oz
   cup:    [62014],                       // blueprint 425 / provider 1:   15oz
+  hat:    [105362],                      // blueprint 1446 / provider 99: Black / One size
 };
 
 const variantCache = new Map<string, number[]>();
@@ -166,6 +172,11 @@ export async function fetchVariantIds(
       .map(t => data.variants.find(v => v.title === t)?.id)
       .filter((id): id is number => id !== undefined)
       .slice(0, 4);
+  } else if (category === 'hat') {
+    // Hats are one-size — pick the solid Black variant explicitly rather
+    // than trusting catalog ordering to put it first.
+    const blackId = data.variants.find(v => v.title === 'Black / One size')?.id;
+    ids = blackId !== undefined ? [blackId] : data.variants.slice(0, 1).map(v => v.id);
   } else {
     // Drinkware and totes: take first available variant(s)
     ids = data.variants.slice(0, 4).map(v => v.id);
