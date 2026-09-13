@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# -------- Config --------
+IMAGE="n8nio/n8n:2.33.7"           # <-- bump this to the target version before running
+CONTAINER="n8n"
+VOLUME="n8n_data"                  # named docker volume holding your data
+PORT="5678:5678"                   # CT102: NPM (CT101) reaches n8n over the LAN, no local nginx -> do not bind to loopback
+ENV_FILE="/root/n8n.env"           # CT102's real env file (was /etc/n8n.env on the old GCP VM)
+BACKUP_DIR="/root/backups"
+HEALTH_URL="http://127.0.0.1:5678/healthz"
+HEALTH_TIMEOUT=900                # seconds to wait for green health
+NGINX_RELOAD=false                  # CT102 has no local nginx; NPM (CT101) needs no reload for a backend restart
+# ------------------------
+
+echo "==> n8n upgrade starting"
+
+# Sanity checks
+[[ -f "$ENV_FILE" ]] || { echo "Missing $ENV_FILE"; exit 1; }
+grep -q '^N8N_ENCRYPTION_KEY=' "$ENV_FILE" || { echo "N8N_ENCRYPTION_KEY not set in $ENV_FILE"; exit 1; }
+
+mkdir -p "$BACKUP_DIR"
+
+# Capture current info for rollback
+OLD_IMAGE_ID=""
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+  echo "==> Capturing current container state"
+  OLD_IMAGE_ID="$(docker inspect -f '{{.Image}}' "$CONTAINER" || true)"
+  echo "    Old image id: ${OLD_IMAGE_ID:-none}"
+fi
+
+# Backup data volume
+echo "==> Backing up docker volume '$VOLUME' to $BACKUP_DIR"
+docker run --rm -v "${VOLUME}":/data -v "${BACKUP_DIR}":/bkp alpine \
+  sh -lc 'cd /data && tar czf /bkp/n8n-data-$(date +%F-%H%M%S).tgz .'
+echo "    Backup complete"
+
+# Pull new image
+echo "==> Pulling image ${IMAGE}"
+docker pull "${IMAGE}"
+
+# Stop & remove current container (if exists)
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+  echo "==> Removing existing container ${CONTAINER}"
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+fi
+
+# Start new container
+echo "==> Starting new container ${CONTAINER}"
+set -x
+docker run -d --name "${CONTAINER}" --restart unless-stopped \
+  --env-file "${ENV_FILE}" \
+  -p "${PORT}" \
+  -v "${VOLUME}":/home/node/.n8n \
+  "${IMAGE}"
+set +x
+
+# Health check loop
+echo "==> Waiting for health at ${HEALTH_URL} (timeout ${HEALTH_TIMEOUT}s)"
+SECONDS=0
+OK=0
+while (( SECONDS < HEALTH_TIMEOUT )); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' "${HEALTH_URL}" || true)
+  if [[ "$code" == "200" ]]; then
+    OK=1
+    break
+  fi
+
+   # if migrations are ongoing, keep waiting even if health is not 200
+  if docker logs --since=2s "${CONTAINER}" 2>/dev/null | grep -q "Migrations in progress"; then
+    sleep 5
+    continue
+
+  fi
+  sleep 3
+done
+
+if [[ $OK -ne 1 ]]; then
+  echo "!! Health check failed (no 200 from ${HEALTH_URL})"
+  echo "==> Logs (last 80 lines):"
+  docker logs --tail=80 "${CONTAINER}" || true
+
+  if [[ -n "${OLD_IMAGE_ID}" ]]; then
+    echo "==> Rolling back to previous image ${OLD_IMAGE_ID}"
+    docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
+    set -x
+    docker run -d --name "${CONTAINER}" --restart unless-stopped \
+      --env-file "${ENV_FILE}" \
+      -p "${PORT}" \
+      -v "${VOLUME}":/home/node/.n8n \
+      "${OLD_IMAGE_ID}"
+    set +x
+    echo "==> Rollback started. Check health: curl -s -o /dev/null -w 'HTTP=%{http_code}\n' ${HEALTH_URL}"
+    exit 2
+  else
+    echo "!! No previous image to roll back to. Investigate container logs."
+    exit 3
+  fi
+fi
+
+# Optionally reload nginx
+if [[ "${NGINX_RELOAD}" == "true" ]]; then
+  echo "==> Reloading nginx"
+  nginx -t && systemctl reload nginx
+fi
+
+# Show version
+echo "==> Upgrade successful"
+docker exec -i "${CONTAINER}" n8n --version || true
