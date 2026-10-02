@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import admin from 'firebase-admin';
+import { loadServiceAccount } from './load-service-account.mjs';
 import { randomUUID } from 'crypto';
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -55,12 +56,6 @@ const TEMPLATES = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const jsonKey = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-if (!jsonKey) {
-  console.error('ERROR: FIREBASE_SERVICE_ACCOUNT_JSON is missing from .env');
-  process.exit(1);
-}
-
 const recraftApiKey = process.env.RECRAFT_API_KEY;
 if (!IS_DRY_RUN && !recraftApiKey) {
   console.error('ERROR: RECRAFT_API_KEY is missing from .env');
@@ -68,7 +63,7 @@ if (!IS_DRY_RUN && !recraftApiKey) {
 }
 
 admin.initializeApp({
-  credential: admin.credential.cert(JSON.parse(jsonKey)),
+  credential: admin.credential.cert(loadServiceAccount()),
   storageBucket: BUCKET_NAME,
 });
 

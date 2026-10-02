@@ -12,6 +12,7 @@
 import 'dotenv/config';
 import admin from 'firebase-admin';
 import { GoogleAuth } from 'google-auth-library';
+import { loadServiceAccount } from './load-service-account.mjs';
 
 const DRY_RUN     = !process.argv.includes('--apply');
 const SHEET_ID    = '1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM';
@@ -34,10 +35,7 @@ function isGeneric(title) {
 }
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
-const jsonKey = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-if (!jsonKey) { console.error('ERROR: FIREBASE_SERVICE_ACCOUNT_JSON missing'); process.exit(1); }
-
-const serviceAccount = JSON.parse(jsonKey);
+const serviceAccount = loadServiceAccount();
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),

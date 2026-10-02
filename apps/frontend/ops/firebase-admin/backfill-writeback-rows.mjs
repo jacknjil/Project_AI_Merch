@@ -19,6 +19,7 @@
 
 import 'dotenv/config';
 import { GoogleAuth } from 'google-auth-library';
+import { loadServiceAccount } from './load-service-account.mjs';
 
 const SHEET_ID   = '1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM';
 const SHEET_NAME = 'AI Merch - Asset Generation System';
@@ -35,9 +36,7 @@ const CANONICAL = {
   365: { id: 'wgYWipkrYeAmPaENulD7', phrase: 'SOL · ETERNAL LIGHT OF THE COSMOS', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/ai-merch-dev.firebasestorage.app/o/assets%2F365-izJp2eEp3cpo1Sow3XvQ-1786106667280-1.png?alt=media&token=0f357c23-89be-429e-9df2-fb1c4102c18f', published: false, createdAt: '2026-08-07T12:44:27.696Z' },
 };
 
-const jsonKey = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-if (!jsonKey) { console.error('ERROR: FIREBASE_SERVICE_ACCOUNT_JSON missing'); process.exit(1); }
-const serviceAccount = JSON.parse(jsonKey);
+const serviceAccount = loadServiceAccount();
 
 async function getSheetToken() {
   const auth = new GoogleAuth({

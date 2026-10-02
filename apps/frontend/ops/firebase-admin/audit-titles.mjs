@@ -1,13 +1,11 @@
 import 'dotenv/config';
 import admin from 'firebase-admin';
+import { loadServiceAccount } from './load-service-account.mjs';
 
 const BUCKET_NAME = 'ai-merch-dev.firebasestorage.app';
 
-const jsonKey = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-if (!jsonKey) { console.error('ERROR: FIREBASE_SERVICE_ACCOUNT_JSON missing'); process.exit(1); }
-
 admin.initializeApp({
-  credential: admin.credential.cert(JSON.parse(jsonKey)),
+  credential: admin.credential.cert(loadServiceAccount()),
   storageBucket: BUCKET_NAME,
 });
 

@@ -11,6 +11,7 @@
 import 'dotenv/config';
 import admin from 'firebase-admin';
 import { GoogleAuth } from 'google-auth-library';
+import { loadServiceAccount } from './load-service-account.mjs';
 
 const SHEET_ID    = '1qahisnJg8koBnqmruWLUsvqI3fEHW3AbEen5Y1AYZgM';
 const SHEET_NAME  = 'AI Merch - Asset Generation System';
@@ -23,9 +24,7 @@ const dayStart = dateArg ? new Date(`${dateArg}T00:00:00Z`) : (() => {
   return d;
 })();
 
-const jsonKey = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-if (!jsonKey) { console.error('ERROR: FIREBASE_SERVICE_ACCOUNT_JSON missing'); process.exit(1); }
-const serviceAccount = JSON.parse(jsonKey);
+const serviceAccount = loadServiceAccount();
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
