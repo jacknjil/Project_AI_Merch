@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
+import { requireAdmin } from '@/lib/adminAuth';
 import {
   fetchAllPrintifyProducts,
   filterUnmatchedProducts,
@@ -24,7 +25,10 @@ export interface PreviewItem {
   frontArtworkHasAlpha: boolean | null;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   try {
     const apiKey = process.env.PRINTIFY_API_KEY;
     const shopId = process.env.PRINTIFY_SHOP_ID;

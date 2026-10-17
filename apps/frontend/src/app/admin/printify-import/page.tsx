@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAuthContext } from '@/context/AuthContext';
 
 interface MockupImage {
   src: string;
@@ -23,6 +24,7 @@ interface PreviewItem {
 const CATEGORY_OPTIONS = ['shirt', 'hoodie', 'tote', 'mug', 'cup', 'sticker'];
 
 export default function PrintifyImportPage() {
+  const { user } = useAuthContext();
   const [items, setItems] = useState<PreviewItem[]>([]);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -31,11 +33,21 @@ export default function PrintifyImportPage() {
   const [pendingAction, setPendingAction] = useState<Record<string, 'import' | 'ignore' | undefined>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
+  // The import API routes require an allowlisted admin's Firebase ID token.
+  const authedFetch = async (url: string, init: RequestInit = {}) => {
+    if (!user) throw new Error('Sign in as an admin to use this page');
+    const token = await user.getIdToken();
+    return fetch(url, {
+      ...init,
+      headers: { ...init.headers, Authorization: `Bearer ${token}` },
+    });
+  };
+
   const scan = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/printify-import/preview');
+      const res = await authedFetch('/api/printify-import/preview');
       const data = (await res.json()) as { error?: string; products?: PreviewItem[] };
       if (!res.ok) throw new Error(data.error ?? 'Scan failed');
       const products = data.products ?? [];
@@ -63,7 +75,7 @@ export default function PrintifyImportPage() {
     setPendingAction((prev) => ({ ...prev, [item.printifyProductId]: 'import' }));
     setRowErrors((prev) => ({ ...prev, [item.printifyProductId]: '' }));
     try {
-      const res = await fetch('/api/printify-import/commit', {
+      const res = await authedFetch('/api/printify-import/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -92,7 +104,7 @@ export default function PrintifyImportPage() {
     setPendingAction((prev) => ({ ...prev, [item.printifyProductId]: 'ignore' }));
     setRowErrors((prev) => ({ ...prev, [item.printifyProductId]: '' }));
     try {
-      const res = await fetch('/api/printify-import/ignore', {
+      const res = await authedFetch('/api/printify-import/ignore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ printifyProductId: item.printifyProductId, title: item.title }),

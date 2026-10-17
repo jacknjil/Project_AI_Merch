@@ -14,6 +14,7 @@ import {
   type Firestore,
 } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { getAuth } from 'firebase-admin/auth';
 import type { ServiceAccount } from 'firebase-admin/app';
 import type { Bucket } from '@google-cloud/storage';
 
@@ -119,5 +120,9 @@ export const adminBucket: Bucket = new Proxy({} as Bucket, {
     return bindMaybeFn(b, (b as any)[prop]);
   },
 });
+
+export function getAdminAuth() {
+  return getAuth(getAdminApp());
+}
 
 export { FieldValue };
