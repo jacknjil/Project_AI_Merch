@@ -107,24 +107,20 @@ N8N_SHARED_SECRET              # optional
 
 ## Deployment
 
-**Production is a GCP VM running the app in Docker via `docker compose`.** This is manual, not automatic — pushing to `main` does NOT deploy by itself.
+**Production is the Proxmox LXC container `app-prod` (CT102, 192.168.0.50), running the app in Docker via `docker compose`.** It replaced the old GCP VM (cutover ~2026-07-31 to 2026-08-18; the VM is deleted, only two audit snapshots remain). Deploys are manual — pushing to `main` does NOT deploy by itself.
 
-Canonical deploy flow, run on the VM (not the n8n host — they are different machines; confirm with `ps aux | grep node` before trusting `docker logs` output):
+**`app-prod` is a deliberate snapshot, not a git clone.** `/root/ai-merch-frontend` has no `.git`; it was copied from `apps/frontend` by `rsync` during the migration (files are uid 1000). The running image was built **2026-08-18** and nothing since has been deployed — as of 2026-10-18 that includes the Printify-import auth gate (`0c6334e`) and all later work. Never run `git pull` there. The same container (CT102) also runs `n8n` (port 5678); NPM on CT101 reverse-proxies both. The Proxmox node is 192.168.0.5.
 
-```bash
-cd ~/Project_AI_Merch/apps/frontend
-git pull origin main
-sudo docker compose up --build -d
-sudo docker logs ai-merch-frontend --tail 20
-```
+**Deploy flow: not yet defined.** The original migration command was never recorded, and no deploy has been done since. Agreed approach when the time comes: push committed `HEAD` only (e.g. `git archive HEAD apps/frontend`, so uncommitted work stays out) from the dev machine to `app-prod`, tag the current image as a rollback point, then `docker compose up --build -d` there as root. Settle the exact commands at that time and record them here.
 
-- Container name: `ai-merch-frontend`, port 3000, restart policy `unless-stopped`. Restart a stopped container with `sudo docker start ai-merch-frontend`.
-- `docker-compose.yml` lives at `apps/frontend/docker-compose.yml` and reads `.env.production` (not `.env.local`).
-- All docker commands on the VM require `sudo`.
-- **Disk fills up over time** from accumulated image layers/build cache across repeated `--build` runs — if a build fails with `ResourceExhausted: ... no space left on device`, run `df -h` to confirm, then `sudo docker system df` to see the reclaimable breakdown, then `sudo docker builder prune -af` followed by `sudo docker image prune -af` (avoid `--volumes`, it can also wipe named volumes). Both prune commands can be slow to the point of looking hung when the disk is near-full — check `df -h` in a second session for actual progress before assuming it's stuck.
+- Container name: `ai-merch-frontend`, port 3000, restart policy `unless-stopped`. Restart a stopped container with `docker start ai-merch-frontend`.
+- `docker-compose.yml` lives at `~/ai-merch-frontend/docker-compose.yml` on `app-prod` and reads `.env.production` (not `.env.local`). That file is currently mode 644 — should be `chmod 600`.
+- **Prod `.env.production` gaps (checked 2026-10-18, names only):** no `PRINTIFY_API_KEY` / `PRINTIFY_SHOP_ID` (Printify import/reconcile cannot work on prod; it only works in dev), no `ADMIN_EMAILS` (add **before** deploying `0c6334e` or the import page locks the admin out), and `NEXT_PUBLIC_FIREBASE_MESSASGING_SENDER_ID` is misspelled (unused in `src`, harmless). `NEXT_PUBLIC_BASE_URL` is absent but also unused in `src`.
+- `app-prod` has no `sudo` (root shell) — drop the `sudo` prefix from docker commands there.
+- **Disk fills up over time** from accumulated image layers/build cache across repeated `--build` runs (seen on the old GCP VM; `app-prod` was 47% of 20G on 2026-10-18) — if a build fails with `ResourceExhausted: ... no space left on device`, run `df -h` to confirm, then `docker system df` to see the reclaimable breakdown, then `docker builder prune -af` followed by `docker image prune -af`. Don't prune the `ai-merch-frontend:rollback` tag away if you've made one (avoid `--volumes`, it can also wipe named volumes). Both prune commands can be slow to the point of looking hung when the disk is near-full — check `df -h` in a second session for actual progress before assuming it's stuck.
 - `next.config.js` uses `output: 'standalone'` for container optimization. Remote image domains are whitelisted for Firebase Storage, Azure DALL-E, and Google Auth profile images.
 
-**Known open item — TODO, not yet resolved:** `apps/frontend/apphosting.yaml` (service `ai-merch-store`, region `us-central1`) exists from a partial migration to Firebase App Hosting (Cloud Run) that was never finished. It is not live and should not be assumed to be the deploy target. Decide whether to finish that migration or remove the leftover config — until then, the GCP VM above is the only real production target.
+**Known open item — TODO, not yet resolved:** `apps/frontend/apphosting.yaml` (service `ai-merch-store`, region `us-central1`) exists from a partial migration to Firebase App Hosting (Cloud Run) that was never finished. It is not live and should not be assumed to be the deploy target. Decide whether to finish that migration or remove the leftover config — until then, the Proxmox `app-prod` container above is the only real production target.
 
 ## Key Gotchas
 
