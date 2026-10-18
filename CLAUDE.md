@@ -109,13 +109,26 @@ N8N_SHARED_SECRET              # optional
 
 **Production is the Proxmox LXC container `app-prod` (CT102, 192.168.0.50), running the app in Docker via `docker compose`.** It replaced the old GCP VM (cutover ~2026-07-31 to 2026-08-18; the VM is deleted, only two audit snapshots remain). Deploys are manual — pushing to `main` does NOT deploy by itself.
 
-**`app-prod` is a deliberate snapshot, not a git clone.** `/root/ai-merch-frontend` has no `.git`; it was copied from `apps/frontend` by `rsync` during the migration (files are uid 1000). The running image was built **2026-08-18** and nothing since has been deployed — as of 2026-10-18 that includes the Printify-import auth gate (`0c6334e`) and all later work. Never run `git pull` there. The same container (CT102) also runs `n8n` (port 5678); NPM on CT101 reverse-proxies both. The Proxmox node is 192.168.0.5.
+**Since 2026-10-18 `app-prod` deploys from a git clone.** `/root/Project_AI_Merch` is a clone (`git@github.com:jacknjil/Project_AI_Merch.git`) using a read-only GitHub deploy key (`~/.ssh/github_deploy`, `Host github.com` in `~/.ssh/config`); the app runs from `/root/Project_AI_Merch/apps/frontend`. The old rsync snapshot `/root/ai-merch-frontend` (no `.git`, image built 2026-08-18) is kept only as a rollback. The 2026-10-18 deploy shipped `8d6027f` including the Printify-import auth gate (`0c6334e`). The same container (CT102) also runs `n8n` (port 5678); NPM on CT101 reverse-proxies both. The Proxmox node is 192.168.0.5.
 
-**Deploy flow: not yet defined.** The original migration command was never recorded, and no deploy has been done since. Agreed approach when the time comes: push committed `HEAD` only (e.g. `git archive HEAD apps/frontend`, so uncommitted work stays out) from the dev machine to `app-prod`, tag the current image as a rollback point, then `docker compose up --build -d` there as root. Settle the exact commands at that time and record them here.
+**Deploy flow** (push to `main` first; only committed work deploys). On `app-prod` as root:
+
+```bash
+docker tag frontend-ai-merch-frontend:latest ai-merch-frontend:rollback   # rollback point
+cd /root/Project_AI_Merch && git pull
+cd apps/frontend
+docker rm -f ai-merch-frontend && docker compose up --build -d
+docker logs --tail 30 ai-merch-frontend; curl -sI http://localhost:3000 | head -1
+```
+
+**Rollback** (the old Aug-18 image still exists): `cd /root/ai-merch-frontend && docker rm -f ai-merch-frontend && docker compose up -d`.
+
+`.env.production` lives untracked in the clone's `apps/frontend` (mode 600) and is **not** a tracked file, so `git pull` leaves it alone. The Dockerfile builder stage `COPY . .` includes it on purpose (`next build` inlines `NEXT_PUBLIC_*` from it), and the runner stage does not copy it, so it is not in the final image. Do **not** add `.env*` to a `.dockerignore`.
 
 - Container name: `ai-merch-frontend`, port 3000, restart policy `unless-stopped`. Restart a stopped container with `docker start ai-merch-frontend`.
-- `docker-compose.yml` lives at `~/ai-merch-frontend/docker-compose.yml` on `app-prod` and reads `.env.production` (not `.env.local`). That file is currently mode 644 — should be `chmod 600`.
-- **Prod `.env.production` gaps (checked 2026-10-18, names only):** no `PRINTIFY_API_KEY` / `PRINTIFY_SHOP_ID` (Printify import/reconcile cannot work on prod; it only works in dev), no `ADMIN_EMAILS` (add **before** deploying `0c6334e` or the import page locks the admin out), and `NEXT_PUBLIC_FIREBASE_MESSASGING_SENDER_ID` is misspelled (unused in `src`, harmless). `NEXT_PUBLIC_BASE_URL` is absent but also unused in `src`.
+- `docker-compose.yml` is tracked in the repo at `apps/frontend/docker-compose.yml` (identical to the old snapshot's) and reads `.env.production` (not `.env.local`). Both `.env.production` copies on `app-prod` are mode 600.
+- **Prod `.env.production` (names checked 2026-10-18):** now has `PRINTIFY_API_KEY`, `PRINTIFY_SHOP_ID` and `ADMIN_EMAILS`. `NEXT_PUBLIC_FIREBASE_MESSASGING_SENDER_ID` is still misspelled (unused in `src`, harmless). `NEXT_PUBLIC_BASE_URL` is absent but also unused in `src`.
+- Compose project name follows the directory, so the clone builds `frontend-ai-merch-frontend`; the old snapshot's image is `ai-merch-frontend-ai-merch-frontend`.
 - `app-prod` has no `sudo` (root shell) — drop the `sudo` prefix from docker commands there.
 - **Disk fills up over time** from accumulated image layers/build cache across repeated `--build` runs (seen on the old GCP VM; `app-prod` was 47% of 20G on 2026-10-18) — if a build fails with `ResourceExhausted: ... no space left on device`, run `df -h` to confirm, then `docker system df` to see the reclaimable breakdown, then `docker builder prune -af` followed by `docker image prune -af`. Don't prune the `ai-merch-frontend:rollback` tag away if you've made one (avoid `--volumes`, it can also wipe named volumes). Both prune commands can be slow to the point of looking hung when the disk is near-full — check `df -h` in a second session for actual progress before assuming it's stuck.
 - `next.config.js` uses `output: 'standalone'` for container optimization. Remote image domains are whitelisted for Firebase Storage, Azure DALL-E, and Google Auth profile images.
