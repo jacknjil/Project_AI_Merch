@@ -13,13 +13,20 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Asset } from '@/lib/types';
-import { DEFAULT_PRODUCT_CATEGORY } from '@/lib/recraft';
+import { useAuthContext } from '@/context/AuthContext';
+
+const PUBLISH_BLOCK_NOTICES: Record<string, string> = {
+  'asset-not-approved': 'Created as a Printify draft. Not on Etsy: this design is not approved.',
+  'publishing-disabled': 'Created as a Printify draft. Not on Etsy: publishing is switched off on the server.',
+};
 
 export default function AdminAssetsPage() {
+  const { user } = useAuthContext();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [rowNotices, setRowNotices] = useState<Record<string, string>>({});
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [refreshingMockupId, setRefreshingMockupId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -40,31 +47,66 @@ export default function AdminAssetsPage() {
     }
   };
 
+  const setApprovedForPublish = async (asset: Asset, approved: boolean) => {
+    setRowErrors((prev) => ({ ...prev, [asset.id]: '' }));
+    setAssets((prev) =>
+      prev.map((a) => (a.id === asset.id ? { ...a, approvedForPublish: approved } : a)),
+    );
+    try {
+      // Approval is written server-side: client Firestore rules deny writes to this field.
+      if (!user) throw new Error('Sign in as an admin to approve');
+      const token = await user.getIdToken();
+      const res = await fetch('/api/approve-asset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ assetId: asset.id, approved }),
+      });
+      if (!res.ok) throw new Error(`Approval failed (${res.status})`);
+    } catch {
+      setAssets((prev) =>
+        prev.map((a) => (a.id === asset.id ? { ...a, approvedForPublish: !approved } : a)),
+      );
+      setRowErrors((prev) => ({ ...prev, [asset.id]: 'Failed to save approval.' }));
+    }
+  };
+
   const publishToPrintify = async (asset: Asset) => {
     if (!asset.imageUrl) return;
     setPublishingId(asset.id);
     setRowErrors((prev) => ({ ...prev, [asset.id]: '' }));
     try {
+      // The publish route requires an allowlisted admin's Firebase ID token.
+      if (!user) throw new Error('Sign in as an admin to publish');
+      const token = await user.getIdToken();
       const res = await fetch('/api/publish-to-printify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assetId: asset.id,
-          imageUrl: asset.imageUrl,
-          title: asset.title,
-          productCategory: asset.productCategory ?? DEFAULT_PRODUCT_CATEGORY,
-          niche: asset.niche,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ assetId: asset.id }),
       });
-      const data = await res.json() as { error?: string; printifyProductId?: string };
+      const data = await res.json() as {
+        error?: string;
+        printifyProductId?: string;
+        printifyStatus?: string;
+        publishWarning?: string;
+        publishBlockedReason?: string;
+      };
       if (!res.ok) throw new Error(data.error ?? 'Publish failed');
       setAssets((prev) =>
         prev.map((a) =>
           a.id === asset.id
-            ? { ...a, printifyProductId: data.printifyProductId, printifyStatus: 'published' }
+            ? { ...a, printifyProductId: data.printifyProductId, printifyStatus: data.printifyStatus }
             : a,
         ),
       );
+      if (data.publishBlockedReason) {
+        setRowNotices((prev) => ({
+          ...prev,
+          [asset.id]: PUBLISH_BLOCK_NOTICES[data.publishBlockedReason ?? ''] ?? 'Created as a Printify draft; not published to Etsy.',
+        }));
+      }
+      if (data.publishWarning) {
+        setRowErrors((prev) => ({ ...prev, [asset.id]: data.publishWarning ?? '' }));
+      }
     } catch (err) {
       setRowErrors((prev) => ({
         ...prev,
@@ -282,6 +324,9 @@ export default function AdminAssetsPage() {
                   {rowErrors[asset.id] && (
                     <p className="text-xs text-red-400">{rowErrors[asset.id]}</p>
                   )}
+                  {rowNotices[asset.id] && (
+                    <p className="text-xs text-muted">{rowNotices[asset.id]}</p>
+                  )}
                 </div>
 
                 <span
@@ -309,6 +354,10 @@ export default function AdminAssetsPage() {
                   <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-400">
                     On Etsy
                   </span>
+                ) : asset.printifyStatus === 'created' ? (
+                  <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400">
+                    Draft on Printify
+                  </span>
                 ) : asset.printifyStatus === 'archived' ? (
                   <>
                     <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-xs font-medium text-muted">
@@ -323,6 +372,15 @@ export default function AdminAssetsPage() {
                     </button>
                   </>
                 ) : (
+                  <>
+                  <label className="flex shrink-0 items-center gap-1 text-xs text-muted">
+                    <input
+                      type="checkbox"
+                      checked={asset.approvedForPublish === true}
+                      onChange={(e) => setApprovedForPublish(asset, e.target.checked)}
+                    />
+                    Approve for Etsy
+                  </label>
                   <button
                     onClick={() => publishToPrintify(asset)}
                     disabled={publishingId === asset.id || !asset.imageUrl}
@@ -330,6 +388,7 @@ export default function AdminAssetsPage() {
                   >
                     {publishingId === asset.id ? 'Publishing…' : 'Publish to Printify'}
                   </button>
+                  </>
                 )}
 
                 {asset.printifyProductId && (

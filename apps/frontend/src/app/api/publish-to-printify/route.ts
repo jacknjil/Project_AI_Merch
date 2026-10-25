@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
+import { requireAdmin } from '@/lib/adminAuth';
+import { shouldPublishToChannel } from '@/lib/publishGuard';
+import { DEFAULT_PRODUCT_CATEGORY } from '@/lib/recraft';
 import { crispUpscale, removeBackground, needsBackgroundRemoval } from '@/lib/recraft';
 import {
   uploadImageToPrintify,
@@ -13,19 +16,54 @@ import {
 
 export const runtime = 'nodejs';
 
+// Firestore doc ids used for assets; rejects path separators and anything exotic.
+const ASSET_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   try {
     const body = await req.json();
-    const { assetId, imageUrl, title, productCategory, niche } = body ?? {};
+    const { assetId } = body ?? {};
 
-    if (!assetId || !imageUrl || !title || !productCategory) {
+    if (typeof assetId !== 'string' || !ASSET_ID_PATTERN.test(assetId)) {
+      return NextResponse.json({ error: 'Missing or invalid assetId' }, { status: 400 });
+    }
+
+    // Read the asset up front so an unknown id fails before any upload or product creation,
+    // and so the publish guard can see the approval flag. Image, title and category come from
+    // the saved asset, never the request body, so a caller can't point the server at an
+    // arbitrary URL or publish a mismatched image under an approved asset's id.
+    const assetRef = adminDb.collection('assets').doc(assetId);
+    const assetSnap = await assetRef.get();
+    if (!assetSnap.exists) {
+      return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+    const asset = assetSnap.data() ?? {};
+    const imageUrl: unknown = asset.imageUrl;
+    const title: unknown = asset.title;
+    const productCategory = String(asset.productCategory ?? DEFAULT_PRODUCT_CATEGORY);
+    const niche: unknown = asset.niche;
+
+    if (typeof imageUrl !== 'string' || !imageUrl || typeof title !== 'string' || !title) {
+      return NextResponse.json({ error: 'Asset is missing imageUrl or title' }, { status: 400 });
+    }
+
+    // A second run would create a duplicate Printify product and overwrite the stored id.
+    if (asset.printifyProductId && (asset.printifyStatus === 'created' || asset.printifyStatus === 'published')) {
       return NextResponse.json(
-        { error: 'Missing required fields: assetId, imageUrl, title, productCategory' },
-        { status: 400 },
+        { error: 'Asset already has a Printify product', printifyProductId: asset.printifyProductId },
+        { status: 409 },
       );
     }
 
-    let printUrl = String(imageUrl);
+    const publishDecision = shouldPublishToChannel(
+      { approvedForPublish: asset.approvedForPublish },
+      process.env.PRINTIFY_PUBLISH_ENABLED,
+    );
+
+    let printUrl = imageUrl;
     const isApparel = needsBackgroundRemoval(String(productCategory));
     const fileName = `${assetId}-print.png`;
     let uploaded: PrintifyImageUpload;
@@ -91,15 +129,22 @@ export async function POST(req: NextRequest) {
       tags: niche ? [String(niche), 'ai-merch'] : ['ai-merch'],
     });
 
-    // 5. Publish to connected sales channel — non-fatal if no channel connected
+    // 5. Publish to connected sales channel (Etsy) only when the guard allows it.
+    // A blocked product stays a hidden Printify draft — nothing reaches Etsy.
+    // Publish failures are non-fatal.
     let printifyStatus = 'created';
     let publishWarning: string | undefined;
-    try {
-      await publishPrintifyProduct(product.id);
-      printifyStatus = 'published';
-    } catch (publishErr) {
-      publishWarning = publishErr instanceof Error ? publishErr.message : String(publishErr);
-      console.warn('Printify publish skipped:', publishWarning);
+    let publishBlockedReason: string | undefined;
+    if (publishDecision.publish) {
+      try {
+        await publishPrintifyProduct(product.id);
+        printifyStatus = 'published';
+      } catch (publishErr) {
+        publishWarning = publishErr instanceof Error ? publishErr.message : String(publishErr);
+        console.warn('Printify publish skipped:', publishWarning);
+      }
+    } else {
+      publishBlockedReason = publishDecision.reason;
     }
 
     // 6. Fetch Printify mockup images (non-fatal)
@@ -107,7 +152,7 @@ export async function POST(req: NextRequest) {
     const mockupUrl = mockupImages.find((img) => img.isDefault)?.src ?? mockupImages[0]?.src ?? null;
 
     // 7. Update Firestore asset
-    await adminDb.collection('assets').doc(String(assetId)).update({
+    await assetRef.update({
       printifyProductId: product.id,
       printifyStatus,
       ...(mockupUrl ? { mockupUrl } : {}),
@@ -120,6 +165,7 @@ export async function POST(req: NextRequest) {
       printifyProductId: product.id,
       printifyStatus,
       ...(publishWarning ? { publishWarning } : {}),
+      ...(publishBlockedReason ? { publishBlockedReason } : {}),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error';

@@ -29,6 +29,8 @@ export interface Asset {
   productCategory?: string;
   printifyProductId?: string;
   printifyStatus?: string;
+  /** Must be true (plus PRINTIFY_PUBLISH_ENABLED=true) before a product is pushed to Etsy. */
+  approvedForPublish?: boolean;
   mockupUrl?: string;
   mockupImages?: { src: string; label: string; isDefault: boolean }[];
   designGroupId?: string;
